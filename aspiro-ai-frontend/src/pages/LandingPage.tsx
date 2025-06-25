@@ -2,7 +2,12 @@
 import React from 'react';
 import { ArrowRightIcon, AcademicCapIcon, BriefcaseIcon, LightBulbIcon, UserGroupIcon, ChatBubbleLeftRightIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
-const LandingPage: React.FC = () => {
+interface LandingPageProps {
+  onNavigateToLogin: () => void;
+  onNavigateToRegister: () => void;
+}
+
+const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToLogin, onNavigateToRegister }) => {
   return (
     <div className="min-h-screen bg-background text-text-DEFAULT overflow-x-hidden">
       {/* Spacer for fixed header */}
@@ -20,11 +25,17 @@ const LandingPage: React.FC = () => {
             ASPIRO AI leverages cutting-edge artificial intelligence to provide personalized career guidance, helping you discover your potential and achieve your professional dreams.
           </p>
           <div className="mt-12 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
-            <button className="bg-primary hover:bg-primary-dark text-white font-semibold py-4 px-10 rounded-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 text-lg">
+            <button
+              onClick={onNavigateToRegister} // Or onNavigateToLogin, depending on desired flow
+              className="bg-primary hover:bg-primary-dark text-white font-semibold py-4 px-10 rounded-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 text-lg"
+            >
               Get Started
             </button>
-            <button className="bg-surface hover:bg-surface/70 text-text-DEFAULT font-semibold py-4 px-10 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-lg border border-primary/50">
-              Learn More <ArrowRightIcon className="inline h-5 w-5 ml-2" />
+            <button
+              onClick={onNavigateToLogin} // Example: "Learn More" could also be "Sign In" if already a user
+              className="bg-surface hover:bg-surface/70 text-text-DEFAULT font-semibold py-4 px-10 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-lg border border-primary/50"
+            >
+              Sign In / Learn More <ArrowRightIcon className="inline h-5 w-5 ml-2" />
             </button>
           </div>
         </div>
