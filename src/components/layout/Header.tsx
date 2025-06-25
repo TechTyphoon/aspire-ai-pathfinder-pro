@@ -1,32 +1,40 @@
 
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
-import { Sparkles, LogOut } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
 
 export const Header = () => {
   const { user, signOut } = useAuth()
 
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Error signing out:', error)
+    }
+  }
+
   return (
     <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm">
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <Sparkles className="w-8 h-8 text-purple-500" />
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-500 to-blue-500 bg-clip-text text-transparent">
-            ASPIRO AI
-          </h1>
+      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-xl font-bold text-white">ASPIRO AI</h1>
         </div>
         
         {user && (
           <div className="flex items-center space-x-4">
-            <span className="text-gray-300">{user.email}</span>
+            <div className="flex items-center space-x-2 text-gray-300">
+              <User className="h-4 w-4" />
+              <span className="text-sm">{user.email}</span>
+            </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={signOut}
-              className="bg-gray-800 border-gray-700 hover:bg-gray-700"
+              onClick={handleSignOut}
+              className="flex items-center space-x-2 border-gray-700 bg-transparent text-gray-300 hover:bg-gray-800"
             >
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
+              <LogOut className="h-4 w-4" />
+              <span>Sign Out</span>
             </Button>
           </div>
         )}
