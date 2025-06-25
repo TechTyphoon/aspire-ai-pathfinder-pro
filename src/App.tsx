@@ -7,8 +7,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import { Suspense } from "react";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,18 +25,10 @@ const App = () => {
         <Sonner />
         <AuthProvider>
           <BrowserRouter>
-            <Suspense
-              fallback={
-                <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-blue-900/20 flex items-center justify-center">
-                  <LoadingSpinner size="lg" />
-                </div>
-              }
-            >
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </BrowserRouter>
         </AuthProvider>
       </TooltipProvider>
