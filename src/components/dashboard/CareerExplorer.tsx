@@ -1,8 +1,9 @@
+
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Search, TrendingUp, BookOpen } from 'lucide-react'
+import { Search, TrendingUp, BookOpen, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
 
@@ -23,6 +24,7 @@ export const CareerExplorer = () => {
     }
 
     setIsExploring(true)
+    setExplorationResult(null)
     
     try {
       // Call the career-mentor edge function
@@ -103,6 +105,8 @@ export const CareerExplorer = () => {
     }
   }
 
+  const quickExploreFields = ['Data Science', 'Software Engineering', 'Product Management', 'UX Design', 'Digital Marketing', 'Cybersecurity']
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -123,7 +127,7 @@ export const CareerExplorer = () => {
               value={careerField}
               onChange={(e) => setCareerField(e.target.value)}
               className="mt-1"
-              onKeyPress={(e) => e.key === 'Enter' && handleExplore()}
+              onKeyPress={(e) => e.key === 'Enter' && !isExploring && handleExplore()}
             />
           </div>
           <Button 
@@ -131,40 +135,43 @@ export const CareerExplorer = () => {
             disabled={isExploring || !careerField.trim()}
             className="w-full bg-blue-600 hover:bg-blue-700"
           >
-            <Search className="w-4 h-4 mr-2" />
-            {isExploring ? 'Exploring...' : 'Explore Career Path'}
+            {isExploring ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Exploring...
+              </>
+            ) : (
+              <>
+                <Search className="w-4 h-4 mr-2" />
+                Explore Career Path
+              </>
+            )}
           </Button>
         </div>
       </div>
 
       {/* Quick Explore Options */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {['Data Science', 'Software Engineering', 'Product Management', 'UX Design'].map((field) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {quickExploreFields.map((field) => (
           <Button
             key={field}
             variant="outline"
             onClick={() => {
               setCareerField(field)
-              setTimeout(() => handleExplore(), 100)
+              setTimeout(() => {
+                if (!isExploring) {
+                  handleExplore()
+                }
+              }, 100)
             }}
             disabled={isExploring}
-            className="p-4 h-auto flex-col space-y-2"
+            className="p-4 h-auto flex-col space-y-2 hover:bg-blue-50 hover:border-blue-300"
           >
-            <TrendingUp className="w-5 h-5" />
+            <TrendingUp className="w-5 h-5 text-blue-600" />
             <span className="text-sm font-medium">{field}</span>
           </Button>
         ))}
       </div>
-
-      {/* Loading State */}
-      {isExploring && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-blue-800">Exploring {careerField}...</span>
-          </div>
-        </div>
-      )}
 
       {/* Results Display */}
       {explorationResult && !isExploring && (
@@ -172,7 +179,7 @@ export const CareerExplorer = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <BookOpen className="w-5 h-5 text-green-600" />
-              <h3 className="text-xl font-semibold text-gray-900">Career Insights</h3>
+              <h3 className="text-xl font-semibold text-gray-900">Career Insights: {careerField}</h3>
             </div>
             <Button 
               onClick={handleSavePath}

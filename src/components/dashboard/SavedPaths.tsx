@@ -1,6 +1,7 @@
+
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { BookOpen, Trash2, Eye, Plus } from 'lucide-react'
+import { BookOpen, Trash2, Eye, Plus, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
 
@@ -64,6 +65,8 @@ export const SavedPaths = () => {
   }
 
   const handleDeletePath = async (pathId: number) => {
+    if (!confirm('Are you sure you want to delete this career path?')) return
+
     try {
       const { error } = await supabase
         .from('saved_paths')
@@ -93,7 +96,7 @@ export const SavedPaths = () => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     )
   }
@@ -114,14 +117,21 @@ export const SavedPaths = () => {
           <p className="text-gray-600 mb-6">
             Start exploring career paths to build your collection
           </p>
+          <Button 
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Explore Careers
+          </Button>
         </div>
       ) : (
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Saved Paths List */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">Your Saved Paths</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Your Saved Paths ({savedPaths.length})</h3>
             {savedPaths.map((path) => (
-              <div key={path.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+              <div key={path.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900">{path.path_name}</h4>
@@ -138,6 +148,7 @@ export const SavedPaths = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => handleViewPath(path)}
+                      className="hover:bg-blue-50 hover:border-blue-300"
                     >
                       <Eye className="w-4 h-4" />
                     </Button>

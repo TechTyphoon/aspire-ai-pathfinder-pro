@@ -1,8 +1,9 @@
+
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
+import { Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/lib/supabase'
 
@@ -11,6 +12,7 @@ export const ResumeAnalyzer = () => {
   const [targetRole, setTargetRole] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<string | null>(null)
+  const [suggestionsResult, setSuggestionsResult] = useState<string | null>(null)
   const [atsScore, setAtsScore] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -36,6 +38,7 @@ export const ResumeAnalyzer = () => {
       }
       setSelectedFile(file)
       setAnalysisResult(null)
+      setSuggestionsResult(null)
       setAtsScore(null)
       toast({
         title: "File selected",
@@ -65,6 +68,8 @@ export const ResumeAnalyzer = () => {
     }
 
     setIsAnalyzing(true)
+    setAnalysisResult(null)
+    setSuggestionsResult(null)
     
     try {
       // Upload file to Supabase storage
@@ -111,6 +116,8 @@ export const ResumeAnalyzer = () => {
     }
 
     setIsAnalyzing(true)
+    setAnalysisResult(null)
+    setSuggestionsResult(null)
     
     try {
       // Upload file to Supabase storage
@@ -126,8 +133,7 @@ export const ResumeAnalyzer = () => {
 
       if (error) throw error
 
-      setAnalysisResult(data.analysis)
-      setAtsScore(null) // No ATS score for role suggestions
+      setSuggestionsResult(data.analysis)
       
       toast({
         title: "Role suggestions generated",
@@ -203,7 +209,14 @@ export const ResumeAnalyzer = () => {
               disabled={isAnalyzing || !selectedFile || !targetRole.trim()}
               className="w-full bg-green-600 hover:bg-green-700"
             >
-              {isAnalyzing ? 'Analyzing...' : 'Analyze Resume'}
+              {isAnalyzing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                'Analyze Resume'
+              )}
             </Button>
           </div>
         </div>
@@ -219,20 +232,17 @@ export const ResumeAnalyzer = () => {
             disabled={isAnalyzing || !selectedFile}
             className="w-full bg-purple-600 hover:bg-purple-700"
           >
-            {isAnalyzing ? 'Analyzing...' : 'Suggest Roles'}
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              'Suggest Roles'
+            )}
           </Button>
         </div>
       </div>
-
-      {/* Loading State */}
-      {isAnalyzing && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <div className="flex items-center space-x-3">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-blue-800">Analyzing your resume...</span>
-          </div>
-        </div>
-      )}
 
       {/* Results Display */}
       {analysisResult && !isAnalyzing && (
@@ -252,6 +262,20 @@ export const ResumeAnalyzer = () => {
           <div className="prose max-w-none">
             <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
               {analysisResult}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {suggestionsResult && !isAnalyzing && (
+        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+          <div className="flex items-center space-x-2 mb-4">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <h3 className="text-xl font-semibold text-gray-900">Suggested Roles</h3>
+          </div>
+          <div className="prose max-w-none">
+            <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
+              {suggestionsResult}
             </pre>
           </div>
         </div>

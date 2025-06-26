@@ -36,7 +36,7 @@ export const AIAssistantChat = () => {
   }, [messages])
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return
+    if (!inputValue.trim() || isTyping) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -46,6 +46,7 @@ export const AIAssistantChat = () => {
     }
 
     setMessages(prev => [...prev, userMessage])
+    const currentInput = inputValue
     setInputValue('')
     setIsTyping(true)
 
@@ -53,7 +54,7 @@ export const AIAssistantChat = () => {
       // Call the career-mentor edge function
       const { data, error } = await supabase.functions.invoke('career-mentor', {
         body: {
-          question: inputValue
+          question: currentInput
         }
       })
 
@@ -95,9 +96,19 @@ export const AIAssistantChat = () => {
   }
 
   const handleQuickQuestion = (question: string) => {
+    if (isTyping) return
     setInputValue(question)
     setTimeout(() => handleSendMessage(), 100)
   }
+
+  const quickQuestions = [
+    "How do I prepare for interviews?",
+    "What skills should I learn for data science?",
+    "How to negotiate salary?",
+    "Best practices for remote work?",
+    "How to switch careers?",
+    "Building a professional network"
+  ]
 
   return (
     <div className="flex flex-col h-[600px] bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -177,19 +188,14 @@ export const AIAssistantChat = () => {
       {/* Quick Questions */}
       <div className="p-4 border-t border-gray-200">
         <div className="flex flex-wrap gap-2 mb-4">
-          {[
-            "How do I prepare for interviews?",
-            "What skills should I learn?",
-            "How to negotiate salary?",
-            "Remote work tips?"
-          ].map((question) => (
+          {quickQuestions.map((question) => (
             <Button
               key={question}
               variant="outline"
               size="sm"
               onClick={() => handleQuickQuestion(question)}
               disabled={isTyping}
-              className="text-xs"
+              className="text-xs hover:bg-blue-50 hover:border-blue-300"
             >
               {question}
             </Button>
