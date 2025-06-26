@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Send, Bot, User } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase'
 
 interface Message {
   id: string
@@ -48,28 +49,42 @@ export const AIAssistantChat = () => {
     setInputValue('')
     setIsTyping(true)
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponses = [
-        "That's a great question! Based on current market trends, I'd recommend focusing on developing skills in high-demand areas. Would you like me to elaborate on any specific field?",
-        "Here's my advice: Start by identifying your core strengths and interests. Then research companies and roles that align with those areas. Networking is also crucial - consider reaching out to professionals in your target field.",
-        "For interview preparation, I suggest practicing the STAR method (Situation, Task, Action, Result) for behavioral questions. Also, research the company thoroughly and prepare thoughtful questions to ask your interviewer.",
-        "Skill development is key in today's market. Consider online courses, certifications, or hands-on projects. What specific skills are you looking to develop?",
-        "Remote work opportunities have expanded significantly. Focus on building strong communication skills and demonstrating your ability to work independently. Many companies now offer hybrid or fully remote positions."
-      ]
+    try {
+      // Call the career-mentor edge function
+      const { data, error } = await supabase.functions.invoke('career-mentor', {
+        body: {
+          question: inputValue
+        }
+      })
 
-      const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)]
-      
+      if (error) throw error
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: randomResponse,
+        text: data.response,
         sender: 'ai',
         timestamp: new Date()
       }
 
       setMessages(prev => [...prev, aiMessage])
+    } catch (error) {
+      console.error('AI Assistant error:', error)
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I'm sorry, I'm having trouble processing your request right now. Please try again later.",
+        sender: 'ai',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+      
+      toast({
+        title: "Assistant unavailable",
+        description: "Unable to get response from AI assistant",
+        variant: "destructive"
+      })
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -123,7 +138,13 @@ export const AIAssistantChat = () => {
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-900'
               }`}>
-                <p className="text-sm">{message.text}</p>
+                <div className={`text-sm ${message.sender === 'ai' ? 'prose prose-sm max-w-none' : ''}`}>
+                  {message.sender === 'ai' ? (
+                    <pre className="whitespace-pre-wrap font-sans">{message.text}</pre>
+                  ) : (
+                    <p>{message.text}</p>
+                  )}
+                </div>
                 <p className={`text-xs mt-1 ${
                   message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
                 }`}>
@@ -167,6 +188,7 @@ export const AIAssistantChat = () => {
               variant="outline"
               size="sm"
               onClick={() => handleQuickQuestion(question)}
+              disabled={isTyping}
               className="text-xs"
             >
               {question}

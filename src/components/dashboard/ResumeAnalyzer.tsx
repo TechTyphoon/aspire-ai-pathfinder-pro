@@ -1,16 +1,17 @@
-
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase'
 
 export const ResumeAnalyzer = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [targetRole, setTargetRole] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<string | null>(null)
+  const [atsScore, setAtsScore] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
@@ -25,12 +26,32 @@ export const ResumeAnalyzer = () => {
         })
         return
       }
+      if (!file.type.includes('pdf') && !file.type.includes('document') && !file.type.includes('text')) {
+        toast({
+          title: "Invalid file type",
+          description: "Please select a PDF, DOCX, or TXT file",
+          variant: "destructive"
+        })
+        return
+      }
       setSelectedFile(file)
+      setAnalysisResult(null)
+      setAtsScore(null)
       toast({
         title: "File selected",
         description: `${file.name} is ready for analysis`,
       })
     }
+  }
+
+  const uploadFile = async (file: File): Promise<string> => {
+    const fileName = `resume_${Date.now()}_${file.name}`
+    const { data, error } = await supabase.storage
+      .from('resumes')
+      .upload(fileName, file)
+    
+    if (error) throw error
+    return data.path
   }
 
   const handleAnalyze = async () => {
@@ -45,35 +66,38 @@ export const ResumeAnalyzer = () => {
 
     setIsAnalyzing(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      setAnalysisResult(`Analysis for ${targetRole} role:
-
-Based on your resume, here are key insights:
-
-✅ Strengths:
-- Strong technical background
-- Relevant experience in the field
-- Good educational foundation
-
-🔧 Areas for improvement:
-- Add more quantifiable achievements
-- Include relevant keywords for ${targetRole}
-- Strengthen the summary section
-
-📊 Match Score: 78%
-
-Recommendations:
-1. Highlight specific projects related to ${targetRole}
-2. Add metrics to demonstrate impact
-3. Include relevant certifications`)
+    try {
+      // Upload file to Supabase storage
+      const filePath = await uploadFile(selectedFile)
       
-      setIsAnalyzing(false)
+      // Call the analyze-resume edge function
+      const { data, error } = await supabase.functions.invoke('analyze-resume', {
+        body: {
+          filePath,
+          analysisType: 'target-role',
+          targetRole
+        }
+      })
+
+      if (error) throw error
+
+      setAnalysisResult(data.analysis)
+      setAtsScore(data.atsScore)
+      
       toast({
         title: "Analysis complete",
         description: "Your resume has been analyzed successfully",
       })
-    }, 3000)
+    } catch (error) {
+      console.error('Analysis error:', error)
+      toast({
+        title: "Analysis failed",
+        description: "Unable to analyze resume. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
 
   const handleSuggestRoles = async () => {
@@ -88,32 +112,37 @@ Recommendations:
 
     setIsAnalyzing(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      setAnalysisResult(`Based on your resume, here are suggested roles:
-
-🎯 Highly Recommended:
-• Software Engineer - 92% match
-• Frontend Developer - 89% match
-• Full Stack Developer - 85% match
-
-💼 Good Fit:
-• Product Manager - 76% match
-• Technical Lead - 73% match
-• DevOps Engineer - 71% match
-
-🚀 Growth Opportunities:
-• Solutions Architect - 68% match
-• Engineering Manager - 65% match
-
-Each role is matched based on your skills, experience, and career progression potential.`)
+    try {
+      // Upload file to Supabase storage
+      const filePath = await uploadFile(selectedFile)
       
-      setIsAnalyzing(false)
+      // Call the analyze-resume edge function for role suggestions
+      const { data, error } = await supabase.functions.invoke('analyze-resume', {
+        body: {
+          filePath,
+          analysisType: 'best-fit'
+        }
+      })
+
+      if (error) throw error
+
+      setAnalysisResult(data.analysis)
+      setAtsScore(null) // No ATS score for role suggestions
+      
       toast({
         title: "Role suggestions generated",
         description: "Check out the recommended career paths",
       })
-    }, 2500)
+    } catch (error) {
+      console.error('Role suggestion error:', error)
+      toast({
+        title: "Analysis failed",
+        description: "Unable to suggest roles. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
 
   return (
@@ -208,13 +237,23 @@ Each role is matched based on your skills, experience, and career progression po
       {/* Results Display */}
       {analysisResult && !isAnalyzing && (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-          <div className="flex items-center space-x-2 mb-4">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <h3 className="text-xl font-semibold text-gray-900">Analysis Results</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <h3 className="text-xl font-semibold text-gray-900">Analysis Results</h3>
+            </div>
+            {atsScore && (
+              <div className="text-right">
+                <p className="text-sm text-gray-600">ATS Score</p>
+                <p className="text-2xl font-bold text-blue-600">{atsScore}%</p>
+              </div>
+            )}
           </div>
-          <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
-            {analysisResult}
-          </pre>
+          <div className="prose max-w-none">
+            <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
+              {analysisResult}
+            </pre>
+          </div>
         </div>
       )}
     </div>

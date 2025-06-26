@@ -1,10 +1,10 @@
-
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Search, TrendingUp, BookOpen } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase'
 
 export const CareerExplorer = () => {
   const [careerField, setCareerField] = useState('')
@@ -24,51 +24,35 @@ export const CareerExplorer = () => {
 
     setIsExploring(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      setExplorationResult(`Career Path Report: ${careerField}
+    try {
+      // Call the career-mentor edge function
+      const { data, error } = await supabase.functions.invoke('career-mentor', {
+        body: {
+          question: `I want to explore a career in ${careerField}. Can you provide me with a comprehensive career path analysis including job responsibilities, required skills, salary expectations, career progression, and market outlook?`
+        }
+      })
 
-🚀 Overview:
-${careerField} is a rapidly growing field with excellent career prospects and competitive salaries.
+      if (error) throw error
 
-📈 Market Outlook:
-• Job Growth: 15-25% over next 5 years
-• Average Salary: $75,000 - $150,000
-• Remote Work: 70% of positions offer remote options
-
-🛤️ Career Progression:
-1. Entry Level → Junior ${careerField} Professional
-2. Mid Level → Senior ${careerField} Specialist  
-3. Senior Level → ${careerField} Lead/Manager
-4. Executive → Director of ${careerField}
-
-🎯 Key Skills Needed:
-• Technical proficiency in relevant tools
-• Problem-solving and analytical thinking
-• Communication and collaboration
-• Continuous learning mindset
-
-💼 Top Companies Hiring:
-• Tech giants (Google, Microsoft, Amazon)
-• Startups and scale-ups
-• Consulting firms
-• Fortune 500 companies
-
-📚 Recommended Learning Path:
-1. Complete online courses and certifications
-2. Build portfolio projects
-3. Gain hands-on experience through internships
-4. Network with professionals in the field`)
+      setExplorationResult(data.response)
       
-      setIsExploring(false)
       toast({
         title: "Exploration complete",
         description: `Career insights for ${careerField} are ready`,
       })
-    }, 2500)
+    } catch (error) {
+      console.error('Career exploration error:', error)
+      toast({
+        title: "Exploration failed",
+        description: "Unable to explore career field. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsExploring(false)
+    }
   }
 
-  const handleSavePath = () => {
+  const handleSavePath = async () => {
     if (!explorationResult) {
       toast({
         title: "Nothing to save",
@@ -78,10 +62,45 @@ ${careerField} is a rapidly growing field with excellent career prospects and co
       return
     }
 
-    toast({
-      title: "Path saved",
-      description: `${careerField} career path saved to your collection`,
-    })
+    try {
+      // Save to Supabase database
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        toast({
+          title: "Authentication required",
+          description: "Please sign in to save career paths",
+          variant: "destructive"
+        })
+        return
+      }
+
+      const { error } = await supabase
+        .from('saved_paths')
+        .insert({
+          user_id: user.id,
+          path_name: `${careerField} Career Path`,
+          path_details_json: {
+            field: careerField,
+            analysis: explorationResult,
+            saved_at: new Date().toISOString()
+          }
+        })
+
+      if (error) throw error
+
+      toast({
+        title: "Path saved",
+        description: `${careerField} career path saved to your collection`,
+      })
+    } catch (error) {
+      console.error('Save path error:', error)
+      toast({
+        title: "Save failed",
+        description: "Unable to save career path. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   return (
@@ -128,6 +147,7 @@ ${careerField} is a rapidly growing field with excellent career prospects and co
               setCareerField(field)
               setTimeout(() => handleExplore(), 100)
             }}
+            disabled={isExploring}
             className="p-4 h-auto flex-col space-y-2"
           >
             <TrendingUp className="w-5 h-5" />
@@ -162,9 +182,11 @@ ${careerField} is a rapidly growing field with excellent career prospects and co
               Save Path
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
-            {explorationResult}
-          </pre>
+          <div className="prose max-w-none">
+            <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
+              {explorationResult}
+            </pre>
+          </div>
         </div>
       )}
     </div>

@@ -1,67 +1,101 @@
-
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { BookOpen, Trash2, Eye, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { supabase } from '@/lib/supabase'
 
 interface SavedPath {
-  id: string
-  name: string
-  field: string
-  savedAt: string
-  summary: string
+  id: number
+  path_name: string
+  path_details_json: {
+    field?: string
+    analysis?: string
+    saved_at?: string
+  }
+  created_at: string
 }
 
 export const SavedPaths = () => {
   const [savedPaths, setSavedPaths] = useState<SavedPath[]>([])
   const [selectedPath, setSelectedPath] = useState<SavedPath | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
 
   useEffect(() => {
-    // Load saved paths from localStorage or API
-    const mockPaths: SavedPath[] = [
-      {
-        id: '1',
-        name: 'Data Science Career Path',
-        field: 'Data Science',
-        savedAt: '2024-01-15',
-        summary: 'High-growth field with excellent salary prospects and remote work opportunities.'
-      },
-      {
-        id: '2', 
-        name: 'UX Design Journey',
-        field: 'UX Design',
-        savedAt: '2024-01-10',
-        summary: 'Creative field focusing on user experience with strong demand in tech industry.'
-      }
-    ]
-    setSavedPaths(mockPaths)
+    loadSavedPaths()
   }, [])
+
+  const loadSavedPaths = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('saved_paths')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      setSavedPaths(data || [])
+    } catch (error) {
+      console.error('Load paths error:', error)
+      toast({
+        title: "Load failed",
+        description: "Unable to load saved paths",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleViewPath = (path: SavedPath) => {
     setSelectedPath(path)
     toast({
       title: "Path loaded",
-      description: `Viewing details for ${path.name}`,
+      description: `Viewing details for ${path.path_name}`,
     })
   }
 
-  const handleDeletePath = (pathId: string) => {
-    setSavedPaths(prev => prev.filter(p => p.id !== pathId))
-    if (selectedPath?.id === pathId) {
-      setSelectedPath(null)
+  const handleDeletePath = async (pathId: number) => {
+    try {
+      const { error } = await supabase
+        .from('saved_paths')
+        .delete()
+        .eq('id', pathId)
+
+      if (error) throw error
+
+      setSavedPaths(prev => prev.filter(p => p.id !== pathId))
+      if (selectedPath?.id === pathId) {
+        setSelectedPath(null)
+      }
+      toast({
+        title: "Path deleted",
+        description: "Career path removed from your collection",
+      })
+    } catch (error) {
+      console.error('Delete path error:', error)
+      toast({
+        title: "Delete failed",
+        description: "Unable to delete career path",
+        variant: "destructive"
+      })
     }
-    toast({
-      title: "Path deleted",
-      description: "Career path removed from your collection",
-    })
   }
 
-  const handleExploreMore = () => {
-    toast({
-      title: "Feature coming soon",
-      description: "Navigate to Career Explorer to discover new paths",
-    })
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
   }
 
   return (
@@ -80,10 +114,6 @@ export const SavedPaths = () => {
           <p className="text-gray-600 mb-6">
             Start exploring career paths to build your collection
           </p>
-          <Button onClick={handleExploreMore} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="w-4 h-4 mr-2" />
-            Explore Career Paths
-          </Button>
         </div>
       ) : (
         <div className="grid lg:grid-cols-2 gap-6">
@@ -94,10 +124,14 @@ export const SavedPaths = () => {
               <div key={path.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900">{path.name}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{path.field}</p>
-                    <p className="text-sm text-gray-500 mt-2">{path.summary}</p>
-                    <p className="text-xs text-gray-400 mt-2">Saved on {path.savedAt}</p>
+                    <h4 className="font-semibold text-gray-900">{path.path_name}</h4>
+                    <p className="text-sm text-gray-600 mt-1">{path.path_details_json.field || 'Career Path'}</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      {path.path_details_json.analysis?.substring(0, 100)}...
+                    </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      Saved on {new Date(path.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                   <div className="flex space-x-2 ml-4">
                     <Button
@@ -126,31 +160,11 @@ export const SavedPaths = () => {
             <h3 className="text-lg font-semibold text-gray-900">Path Details</h3>
             {selectedPath ? (
               <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <h4 className="text-xl font-semibold text-gray-900 mb-4">{selectedPath.name}</h4>
-                <div className="space-y-4">
-                  <div>
-                    <h5 className="font-medium text-gray-900">Field:</h5>
-                    <p className="text-gray-600">{selectedPath.field}</p>
-                  </div>
-                  <div>
-                    <h5 className="font-medium text-gray-900">Summary:</h5>
-                    <p className="text-gray-600">{selectedPath.summary}</p>
-                  </div>
-                  <div>
-                    <h5 className="font-medium text-gray-900">Career Progression:</h5>
-                    <ul className="text-gray-600 list-disc list-inside space-y-1">
-                      <li>Entry Level → Junior Professional</li>
-                      <li>Mid Level → Senior Specialist</li>
-                      <li>Senior Level → Team Lead</li>
-                      <li>Executive → Director/VP</li>
-                    </ul>
-                  </div>
-                  <Button 
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    onClick={() => toast({ title: "Action coming soon", description: "Detailed path analysis will be available soon" })}
-                  >
-                    Get Detailed Analysis
-                  </Button>
+                <h4 className="text-xl font-semibold text-gray-900 mb-4">{selectedPath.path_name}</h4>
+                <div className="prose max-w-none">
+                  <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-md">
+                    {selectedPath.path_details_json.analysis || 'No detailed analysis available.'}
+                  </pre>
                 </div>
               </div>
             ) : (
