@@ -1,87 +1,197 @@
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { MessageCircle, Send } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Send, Bot, User } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
+
+interface Message {
+  id: string
+  text: string
+  sender: 'user' | 'ai'
+  timestamp: Date
+}
 
 export const AIAssistantChat = () => {
-  const [message, setMessage] = useState('')
-  const [messages, setMessages] = useState([
+  const [messages, setMessages] = useState<Message[]>([
     {
-      id: 1,
-      text: "Hello! I'm your AI career mentor. How can I help you today?",
-      isBot: true,
+      id: '1',
+      text: "Hello! I'm your AI career assistant. I can help you with career advice, interview preparation, skill development, and job search strategies. What would you like to know?",
+      sender: 'ai',
       timestamp: new Date()
     }
   ])
+  const [inputValue, setInputValue] = useState('')
+  const [isTyping, setIsTyping] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
 
-  const sendMessage = () => {
-    if (!message.trim()) return
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
-    const newMessage = {
-      id: messages.length + 1,
-      text: message,
-      isBot: false,
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim()) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: inputValue,
+      sender: 'user',
       timestamp: new Date()
     }
 
-    setMessages([...messages, newMessage])
-    setMessage('')
+    setMessages(prev => [...prev, userMessage])
+    setInputValue('')
+    setIsTyping(true)
 
     // Simulate AI response
     setTimeout(() => {
-      const botResponse = {
-        id: messages.length + 2,
-        text: "Thanks for your message! I'm here to help with your career questions.",
-        isBot: true,
+      const aiResponses = [
+        "That's a great question! Based on current market trends, I'd recommend focusing on developing skills in high-demand areas. Would you like me to elaborate on any specific field?",
+        "Here's my advice: Start by identifying your core strengths and interests. Then research companies and roles that align with those areas. Networking is also crucial - consider reaching out to professionals in your target field.",
+        "For interview preparation, I suggest practicing the STAR method (Situation, Task, Action, Result) for behavioral questions. Also, research the company thoroughly and prepare thoughtful questions to ask your interviewer.",
+        "Skill development is key in today's market. Consider online courses, certifications, or hands-on projects. What specific skills are you looking to develop?",
+        "Remote work opportunities have expanded significantly. Focus on building strong communication skills and demonstrating your ability to work independently. Many companies now offer hybrid or fully remote positions."
+      ]
+
+      const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)]
+      
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: randomResponse,
+        sender: 'ai',
         timestamp: new Date()
       }
-      setMessages(prev => [...prev, botResponse])
-    }, 1000)
+
+      setMessages(prev => [...prev, aiMessage])
+      setIsTyping(false)
+    }, 1500)
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  const handleQuickQuestion = (question: string) => {
+    setInputValue(question)
+    setTimeout(() => handleSendMessage(), 100)
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-white mb-4">AI Career Mentor</h2>
-        <p className="text-gray-400 mb-6">
-          Get personalized career advice and guidance
-        </p>
+    <div className="flex flex-col h-[600px] bg-white border border-gray-200 rounded-lg shadow-sm">
+      {/* Header */}
+      <div className="flex items-center space-x-3 p-4 border-b border-gray-200">
+        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+          <Bot className="w-6 h-6 text-blue-600" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-gray-900">AI Career Assistant</h3>
+          <p className="text-sm text-gray-600">Online • Ready to help</p>
+        </div>
       </div>
 
-      <div className="bg-gray-800 rounded-lg p-4 h-96 overflow-y-auto space-y-4">
-        {messages.map((msg) => (
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
           <div
-            key={msg.id}
-            className={`flex ${msg.isBot ? 'justify-start' : 'justify-end'}`}
+            key={message.id}
+            className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div
-              className={`max-w-xs px-4 py-2 rounded-lg ${
-                msg.isBot
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-blue-600 text-white'
-              }`}
-            >
-              <p className="text-sm">{msg.text}</p>
+            <div className={`flex items-start space-x-2 max-w-[80%] ${
+              message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+            }`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                message.sender === 'user' 
+                  ? 'bg-blue-600' 
+                  : 'bg-gray-200'
+              }`}>
+                {message.sender === 'user' ? (
+                  <User className="w-4 h-4 text-white" />
+                ) : (
+                  <Bot className="w-4 h-4 text-gray-600" />
+                )}
+              </div>
+              <div className={`rounded-lg px-4 py-2 ${
+                message.sender === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-900'
+              }`}>
+                <p className="text-sm">{message.text}</p>
+                <p className={`text-xs mt-1 ${
+                  message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                }`}>
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
             </div>
           </div>
         ))}
+        
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="flex items-start space-x-2 max-w-[80%]">
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                <Bot className="w-4 h-4 text-gray-600" />
+              </div>
+              <div className="bg-gray-100 rounded-lg px-4 py-2">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex space-x-2">
-        <input
-          type="text"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-          placeholder="Ask me anything about your career..."
-          className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
-        />
-        <Button
-          onClick={sendMessage}
-          className="bg-gradient-to-r from-purple-600 to-blue-600"
-        >
-          <Send className="w-4 h-4" />
-        </Button>
+      {/* Quick Questions */}
+      <div className="p-4 border-t border-gray-200">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[
+            "How do I prepare for interviews?",
+            "What skills should I learn?",
+            "How to negotiate salary?",
+            "Remote work tips?"
+          ].map((question) => (
+            <Button
+              key={question}
+              variant="outline"
+              size="sm"
+              onClick={() => handleQuickQuestion(question)}
+              className="text-xs"
+            >
+              {question}
+            </Button>
+          ))}
+        </div>
+
+        {/* Input */}
+        <div className="flex space-x-2">
+          <Input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Ask me anything about your career..."
+            className="flex-1"
+            disabled={isTyping}
+          />
+          <Button 
+            onClick={handleSendMessage}
+            disabled={!inputValue.trim() || isTyping}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <Send className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
     </div>
   )

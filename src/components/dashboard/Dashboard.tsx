@@ -21,13 +21,13 @@ export const Dashboard = () => {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-blue-900/20">
+    <div className="min-h-screen bg-gray-50">
       <Header />
       
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Your Career Dashboard</h1>
-          <p className="text-gray-400 text-lg">AI-powered insights for your professional journey</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Your Career Dashboard</h1>
+          <p className="text-gray-600 text-lg">AI-powered insights for your professional journey</p>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-8">
@@ -40,8 +40,8 @@ export const Dashboard = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-purple-600 to-blue-600'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -51,7 +51,7 @@ export const Dashboard = () => {
           })}
         </div>
 
-        <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-800 rounded-xl p-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           {activeTab === 'resume' && <ResumeAnalyzer />}
           {activeTab === 'career' && <CareerExplorer />}
           {activeTab === 'saved' && <SavedPaths />}
