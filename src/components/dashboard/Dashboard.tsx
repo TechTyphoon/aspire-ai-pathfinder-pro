@@ -7,11 +7,13 @@ import { SavedPaths } from './SavedPaths'
 import { AIAssistantChat } from './AIAssistantChat'
 import { Button } from '@/components/ui/button'
 import { FileText, Compass, BookOpen, MessageCircle } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 type ActiveTab = 'resume' | 'career' | 'saved' | 'chat'
 
 export const Dashboard = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('resume')
+  const { user, loading } = useAuth()
 
   const tabs = [
     { id: 'resume' as const, label: 'Resume Analyzer', icon: FileText },
@@ -19,6 +21,27 @@ export const Dashboard = () => {
     { id: 'saved' as const, label: 'Saved Paths', icon: BookOpen },
     { id: 'chat' as const, label: 'AI Assistant', icon: MessageCircle },
   ]
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Please sign in to access your dashboard</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -1,11 +1,10 @@
 
 import { useState } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { toast } from 'sonner'
+import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/hooks/use-toast'
 
 interface SignUpFormProps {
   onSwitchToLogin: () => void
@@ -15,91 +14,123 @@ export const SignUpForm = ({ onSwitchToLogin }: SignUpFormProps) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const { signUp } = useAuth()
+  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    if (!email || !password || !confirmPassword) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all fields',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match')
+      toast({
+        title: 'Error',
+        description: 'Passwords do not match',
+        variant: 'destructive',
+      })
       return
     }
 
     if (password.length < 6) {
-      toast.error('Password must be at least 6 characters')
+      toast({
+        title: 'Error',
+        description: 'Password must be at least 6 characters long',
+        variant: 'destructive',
+      })
       return
     }
 
-    setLoading(true)
-
+    setIsLoading(true)
+    
     try {
-      await signUp(email, password)
-      toast.success('Account created! Please check your email to verify.')
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create account')
+      const { error } = await signUp(email, password)
+      
+      if (error) {
+        toast({
+          title: 'Sign Up Failed',
+          description: error.message || 'Failed to create account',
+          variant: 'destructive',
+        })
+      } else {
+        toast({
+          title: 'Success',
+          description: 'Account created successfully! Please check your email to verify your account.',
+        })
+        // Switch to login after successful signup
+        setTimeout(() => onSwitchToLogin(), 2000)
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred',
+        variant: 'destructive',
+      })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="email" className="text-gray-300">Email</Label>
+        <Label htmlFor="email">Email</Label>
         <Input
           id="email"
           type="email"
+          placeholder="Enter your email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          disabled={isLoading}
           required
-          className="bg-gray-800 border-gray-700 text-white"
-          placeholder="Enter your email"
         />
       </div>
-
+      
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-gray-300">Password</Label>
+        <Label htmlFor="password">Password</Label>
         <Input
           id="password"
           type="password"
+          placeholder="Enter your password (min 6 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          disabled={isLoading}
           required
-          className="bg-gray-800 border-gray-700 text-white"
-          placeholder="Enter your password"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="confirmPassword" className="text-gray-300">Confirm Password</Label>
+        <Label htmlFor="confirmPassword">Confirm Password</Label>
         <Input
           id="confirmPassword"
           type="password"
+          placeholder="Confirm your password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
+          disabled={isLoading}
           required
-          className="bg-gray-800 border-gray-700 text-white"
-          placeholder="Confirm your password"
         />
       </div>
 
-      <Button
-        type="submit"
-        disabled={loading}
-        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-      >
-        {loading ? <LoadingSpinner size="sm" /> : 'Create Account'}
+      <Button type="submit" className="w-full" disabled={isLoading}>
+        {isLoading ? 'Creating account...' : 'Sign Up'}
       </Button>
 
       <div className="text-center">
-        <span className="text-gray-400">Already have an account? </span>
         <button
           type="button"
           onClick={onSwitchToLogin}
-          className="text-purple-400 hover:text-purple-300 font-medium"
+          className="text-sm text-blue-600 hover:text-blue-500 underline"
+          disabled={isLoading}
         >
-          Sign in
+          Already have an account? Sign in
         </button>
       </div>
     </form>
