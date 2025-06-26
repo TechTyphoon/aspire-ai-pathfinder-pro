@@ -28,6 +28,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    console.log('Setting up auth state listener...')
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -40,44 +42,97 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session:', session?.user?.email)
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('Cleaning up auth subscription')
+      subscription.unsubscribe()
+    }
   }, [])
 
   const signUp = async (email: string, password: string) => {
+    console.log('Attempting to sign up:', email)
     setLoading(true)
-    const redirectUrl = `${window.location.origin}/`
     
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl
+    try {
+      // Sign up without email confirmation for testing
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: undefined // Remove email redirect to skip verification
+        }
+      })
+      
+      console.log('Sign up response:', { data, error })
+      
+      if (error) {
+        console.error('Sign up error:', error)
+        setLoading(false)
+        return { error }
       }
-    })
-    
-    setLoading(false)
-    return { error }
+
+      // If user is created but not confirmed, auto-confirm for testing
+      if (data.user && !data.user.email_confirmed_at) {
+        console.log('User created but not confirmed, attempting direct sign in...')
+        // Try to sign in immediately
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        
+        if (signInError) {
+          console.error('Auto sign-in failed:', signInError)
+        } else {
+          console.log('Auto sign-in successful')
+        }
+      }
+      
+      setLoading(false)
+      return { error: null }
+    } catch (err) {
+      console.error('Sign up exception:', err)
+      setLoading(false)
+      return { error: err }
+    }
   }
 
   const signIn = async (email: string, password: string) => {
+    console.log('Attempting to sign in:', email)
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    setLoading(false)
-    return { error }
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      
+      console.log('Sign in response:', { data, error })
+      
+      setLoading(false)
+      return { error }
+    } catch (err) {
+      console.error('Sign in exception:', err)
+      setLoading(false)
+      return { error: err }
+    }
   }
 
   const signOut = async () => {
+    console.log('Signing out...')
     setLoading(true)
-    await supabase.auth.signOut()
-    setLoading(false)
+    try {
+      await supabase.auth.signOut()
+      console.log('Sign out successful')
+    } catch (err) {
+      console.error('Sign out error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

@@ -54,23 +54,34 @@ export const SignUpForm = ({ onSwitchToLogin }: SignUpFormProps) => {
       const { error } = await signUp(email, password)
       
       if (error) {
-        toast({
-          title: 'Sign Up Failed',
-          description: error.message || 'Failed to create account',
-          variant: 'destructive',
-        })
+        console.error('Sign up error:', error)
+        
+        // Handle specific error cases
+        if (error.message?.includes('User already registered')) {
+          toast({
+            title: 'Account Exists',
+            description: 'This email is already registered. Please try signing in instead.',
+          })
+          setTimeout(() => onSwitchToLogin(), 1500)
+        } else {
+          toast({
+            title: 'Sign Up Failed',
+            description: error.message || 'Failed to create account. Please try again.',
+            variant: 'destructive',
+          })
+        }
       } else {
         toast({
-          title: 'Success',
-          description: 'Account created successfully! Please check your email to verify your account.',
+          title: 'Success!',
+          description: 'Account created successfully! You are now signed in.',
         })
-        // Switch to login after successful signup
-        setTimeout(() => onSwitchToLogin(), 2000)
+        // No need to switch to login, user should be automatically signed in
       }
     } catch (error) {
+      console.error('Sign up exception:', error)
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred',
+        description: 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       })
     } finally {

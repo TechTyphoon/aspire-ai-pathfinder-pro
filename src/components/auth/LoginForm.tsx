@@ -34,11 +34,22 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
       const { error } = await signIn(email, password)
       
       if (error) {
-        toast({
-          title: 'Login Failed',
-          description: error.message || 'Invalid email or password',
-          variant: 'destructive',
-        })
+        console.error('Login error:', error)
+        
+        // Handle specific error cases
+        if (error.message?.includes('Invalid login credentials') || error.message?.includes('Email not confirmed')) {
+          toast({
+            title: 'Login Failed',
+            description: 'Invalid email or password. Please check your credentials and try again.',
+            variant: 'destructive',
+          })
+        } else {
+          toast({
+            title: 'Login Failed',
+            description: error.message || 'Unable to sign in. Please try again.',
+            variant: 'destructive',
+          })
+        }
       } else {
         toast({
           title: 'Success',
@@ -46,9 +57,10 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
         })
       }
     } catch (error) {
+      console.error('Login exception:', error)
       toast({
         title: 'Error',
-        description: 'An unexpected error occurred',
+        description: 'An unexpected error occurred during login',
         variant: 'destructive',
       })
     } finally {
