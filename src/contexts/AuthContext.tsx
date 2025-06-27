@@ -59,41 +59,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true)
     
     try {
-      // Sign up without email confirmation for testing
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: undefined // Remove email redirect to skip verification
+          data: {
+            name: email.split('@')[0] // Use email prefix as default name
+          }
         }
       })
       
       console.log('Sign up response:', { data, error })
       
-      if (error) {
-        console.error('Sign up error:', error)
-        setLoading(false)
-        return { error }
-      }
-
-      // If user is created but not confirmed, auto-confirm for testing
-      if (data.user && !data.user.email_confirmed_at) {
-        console.log('User created but not confirmed, attempting direct sign in...')
-        // Try to sign in immediately
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        
-        if (signInError) {
-          console.error('Auto sign-in failed:', signInError)
-        } else {
-          console.log('Auto sign-in successful')
-        }
-      }
-      
       setLoading(false)
-      return { error: null }
+      return { error }
     } catch (err) {
       console.error('Sign up exception:', err)
       setLoading(false)

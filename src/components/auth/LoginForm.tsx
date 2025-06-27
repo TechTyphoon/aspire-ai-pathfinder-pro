@@ -73,34 +73,62 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
     setIsDemoLoading(true)
     
     try {
-      // First try to sign up the demo user (in case it doesn't exist)
       const demoEmail = 'demo@aspiroai.com'
       const demoPassword = 'demo123456'
       
-      const { error: signUpError } = await supabase.auth.signUp({
-        email: demoEmail,
-        password: demoPassword,
-        options: {
-          emailRedirectTo: undefined
-        }
-      })
+      console.log('Attempting demo login...')
       
-      // Then sign in (whether signup succeeded or failed due to existing user)
-      const { error } = await signIn(demoEmail, demoPassword)
+      // Try to sign in first
+      const { error: signInError } = await signIn(demoEmail, demoPassword)
       
-      if (error) {
-        console.error('Demo login error:', error)
-        toast({
-          title: 'Demo Login Failed',
-          description: 'Unable to log in with demo account. Please try regular login.',
-          variant: 'destructive',
-        })
-      } else {
+      if (!signInError) {
+        // Login successful
         toast({
           title: 'Demo Login Successful',
           description: 'Welcome to ASPIRO AI! You are now logged in with the demo account.',
         })
+        return
       }
+      
+      console.log('Demo sign in failed, attempting to create demo account:', signInError)
+      
+      // If sign in failed, try to create the demo account
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: demoEmail,
+        password: demoPassword,
+        options: {
+          data: {
+            name: 'Demo User'
+          }
+        }
+      })
+      
+      if (signUpError) {
+        console.error('Demo signup error:', signUpError)
+        
+        // If user already exists but couldn't sign in, show specific message
+        if (signUpError.message?.includes('User already registered')) {
+          toast({
+            title: 'Demo Account Issue',
+            description: 'Demo account exists but login failed. Please try again or contact support.',
+            variant: 'destructive',
+          })
+        } else {
+          toast({
+            title: 'Demo Setup Failed',
+            description: 'Unable to set up demo account. Please try regular signup.',
+            variant: 'destructive',
+          })
+        }
+      } else {
+        // Signup successful - user should be automatically signed in
+        console.log('Demo account created:', signUpData)
+        toast({
+          title: 'Demo Account Created',
+          description: 'Welcome to ASPIRO AI! Demo account created and you are now signed in.',
+        })
+      }
+      
     } catch (error) {
       console.error('Demo login exception:', error)
       toast({
@@ -152,7 +180,7 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
           </div>
           <div className="relative flex justify-center text-xs uppercase">
             <span className="bg-background px-2 text-muted-foreground">
-              Or
+              Or try demo
             </span>
           </div>
         </div>
@@ -160,11 +188,18 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
         <Button 
           type="button" 
           variant="outline" 
-          className="w-full" 
+          className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 text-blue-700 hover:bg-gradient-to-r hover:from-blue-100 hover:to-indigo-100" 
           onClick={handleDemoLogin}
           disabled={isLoading || isDemoLoading}
         >
-          {isDemoLoading ? 'Logging in with demo...' : 'Try Demo Account'}
+          {isDemoLoading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+              Setting up demo...
+            </>
+          ) : (
+            '🚀 Try Demo Account'
+          )}
         </Button>
       </div>
 
