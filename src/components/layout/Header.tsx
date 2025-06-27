@@ -1,28 +1,28 @@
 
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/contexts/AuthContext'
+// import { useAuth } from '@/contexts/AuthContext'
 import { LogOut, User } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
+// import { useToast } from '@/hooks/use-toast'
 
 export const Header = () => {
-  const { user, signOut } = useAuth()
-  const { toast } = useToast()
+  // const { user, signOut } = useAuth()
+  // const { toast } = useToast()
 
-  const handleSignOut = async () => {
-    try {
-      await signOut()
-      toast({
-        title: 'Signed out',
-        description: 'You have been successfully signed out',
-      })
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to sign out',
-        variant: 'destructive',
-      })
-    }
-  }
+  // const handleSignOut = async () => {
+  //   try {
+  //     await signOut()
+  //     toast({
+  //       title: 'Signed out',
+  //       description: 'You have been successfully signed out',
+  //     })
+  //   } catch (error) {
+  //     toast({
+  //       title: 'Error',
+  //       description: 'Failed to sign out',
+  //       variant: 'destructive',
+  //     })
+  //   }
+  // }
 
   return (
     <header className="border-b border-gray-200 bg-white shadow-sm">
@@ -33,7 +33,8 @@ export const Header = () => {
             <span className="text-gray-500">Your AI Career Assistant</span>
           </div>
           
-          {user && (
+          {/* Commented out user authentication UI */}
+          {/* {user && (
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 text-gray-600">
                 <User className="w-4 h-4" />
@@ -49,7 +50,7 @@ export const Header = () => {
                 <span>Sign Out</span>
               </Button>
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </header>
