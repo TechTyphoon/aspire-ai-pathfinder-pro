@@ -1,5 +1,6 @@
 # server/routes/auth_routes.py
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import create_access_token # Import create_access_token
 from ..models import User, db # Assuming models.py is one level up
 from ..utils import make_error_response, is_valid_email, MAX_INPUT_STRING_LENGTH
 # To get bcrypt, we'll import it from the main app instance when blueprint is registered, or pass it.
@@ -77,7 +78,13 @@ def login_user():
         user = User.query.filter_by(email=email).first()
 
         if user and bcrypt_instance.check_password_hash(user.password_hash, password):
-            return jsonify({"message": "Login successful", "user_id": user.id}), 200
+            # Create JWT token
+            access_token = create_access_token(identity=str(user.id)) # Use stringified user.id as the identity
+            return jsonify({
+                "message": "Login successful",
+                "user_id": user.id, # Keep user_id as int in response for convenience if clients expect it
+                "access_token": access_token
+            }), 200
         else:
             return make_error_response("Invalid email or password", 401)
 

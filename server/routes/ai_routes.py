@@ -1,8 +1,9 @@
 # server/routes/ai_routes.py
 from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity # Import jwt_required and get_jwt_identity
 from ..utils import (
     make_error_response, extract_text_from_file, generate_ai_content,
-    allowed_file, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB,
+    allowed_file, # MAX_FILE_SIZE_BYTES and MAX_FILE_SIZE_MB are removed from here
     MAX_TARGET_ROLE_LENGTH, MAX_CAREER_FIELD_LENGTH,
     AIServiceError # Import custom AI exceptions
 )
@@ -15,7 +16,10 @@ from ..prompts import (
 ai_bp = Blueprint('ai_bp', __name__, url_prefix='/api')
 
 @ai_bp.route('/analyze-resume', methods=['POST'])
+@jwt_required() # Protect this route
 def analyze_resume_route():
+    # user_id = get_jwt_identity() # Get the ID of the current user
+    # current_app.logger.info(f"User {user_id} accessing /analyze-resume") # Example of using user_id
     gemini_model_instance = current_app.config.get('GEMINI_MODEL_INSTANCE') # Get model from app config
     try:
         if 'resume_file' not in request.files:
@@ -27,13 +31,19 @@ def analyze_resume_route():
         if file.filename == '':
             return make_error_response("No file selected for upload", 400)
 
-        if not allowed_file(file.filename):
-            return make_error_response(f"Invalid file type. Allowed types: {', '.join(current_app.config.get('ALLOWED_EXTENSIONS', ['pdf', 'docx', 'txt']))}", 400)
+        # Use config for allowed extensions and file size limits
+        allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', {'pdf', 'docx', 'txt'})
+        max_file_bytes = current_app.config.get('MAX_FILE_SIZE_BYTES', 10 * 1024 * 1024) # Default 10MB
+        max_file_mb = current_app.config.get('MAX_FILE_SIZE_MB', 10)
+
+
+        if not allowed_file(file.filename, allowed_extensions):
+            return make_error_response(f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}", 400)
 
         file_bytes = file.read()
-        file.seek(0)
-        if len(file_bytes) > MAX_FILE_SIZE_BYTES: # MAX_FILE_SIZE_BYTES should be from utils or app.config
-            return make_error_response(f"File exceeds maximum size of {MAX_FILE_SIZE_MB}MB", 413)
+        file.seek(0) # Reset file pointer after reading for size check
+        if len(file_bytes) > max_file_bytes:
+            return make_error_response(f"File exceeds maximum size of {max_file_mb}MB", 413)
 
         if not target_role:
             return make_error_response("Target role is required", 400)
@@ -57,7 +67,10 @@ def analyze_resume_route():
         return make_error_response("An unexpected server error occurred.", 500, details=str(e))
 
 @ai_bp.route('/suggest-roles', methods=['POST'])
+@jwt_required() # Protect this route
 def suggest_roles_route():
+    # user_id = get_jwt_identity() # Get the ID of the current user
+    # current_app.logger.info(f"User {user_id} accessing /suggest-roles")
     gemini_model_instance = current_app.config.get('GEMINI_MODEL_INSTANCE')
     try:
         if 'resume_file' not in request.files:
@@ -67,13 +80,18 @@ def suggest_roles_route():
         if file.filename == '':
             return make_error_response("No file selected for upload", 400)
 
-        if not allowed_file(file.filename):
-            return make_error_response(f"Invalid file type. Allowed types: {', '.join(current_app.config.get('ALLOWED_EXTENSIONS', ['pdf', 'docx', 'txt']))}", 400)
+        # Use config for allowed extensions and file size limits
+        allowed_extensions = current_app.config.get('ALLOWED_EXTENSIONS', {'pdf', 'docx', 'txt'})
+        max_file_bytes = current_app.config.get('MAX_FILE_SIZE_BYTES', 10 * 1024 * 1024) # Default 10MB
+        max_file_mb = current_app.config.get('MAX_FILE_SIZE_MB', 10)
+
+        if not allowed_file(file.filename, allowed_extensions):
+            return make_error_response(f"Invalid file type. Allowed types: {', '.join(allowed_extensions)}", 400)
 
         file_bytes = file.read()
-        file.seek(0)
-        if len(file_bytes) > MAX_FILE_SIZE_BYTES:
-            return make_error_response(f"File exceeds maximum size of {MAX_FILE_SIZE_MB}MB", 413)
+        file.seek(0) # Reset file pointer after reading for size check
+        if len(file_bytes) > max_file_bytes:
+            return make_error_response(f"File exceeds maximum size of {max_file_mb}MB", 413)
 
         resume_text = extract_text_from_file(file)
         if resume_text is None:
@@ -92,7 +110,10 @@ def suggest_roles_route():
         return make_error_response("An unexpected server error occurred.", 500, details=str(e))
 
 @ai_bp.route('/explore-path', methods=['POST'])
+@jwt_required() # Protect this route
 def explore_career_path_route():
+    # user_id = get_jwt_identity() # Get the ID of the current user
+    # current_app.logger.info(f"User {user_id} accessing /explore-path")
     gemini_model_instance = current_app.config.get('GEMINI_MODEL_INSTANCE')
     try:
         data = request.get_json()
