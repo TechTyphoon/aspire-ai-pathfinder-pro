@@ -35,13 +35,22 @@ MAX_INPUT_STRING_LENGTH = 255
 MAX_TARGET_ROLE_LENGTH = 150
 MAX_CAREER_FIELD_LENGTH = 150
 MAX_PATH_NAME_LENGTH = 200
-ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt'}
-MAX_FILE_SIZE_MB = 10
-MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+# ALLOWED_EXTENSIONS, MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES are now primarily managed in app.config
+# These constants can serve as defaults if not found in config, or be removed if config is always expected.
+# For now, let's remove them here to enforce usage from app.config.
+# ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt'} # Will get from current_app.config
+# MAX_FILE_SIZE_MB = 10 # Will get from current_app.config
+# MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024 # Will get from current_app.config
 
-def allowed_file(filename):
+def allowed_file(filename, allowed_extensions_config):
+    """
+    Checks if a filename has an allowed extension.
+    :param filename: The name of the file.
+    :param allowed_extensions_config: A set of allowed extensions from app config.
+    :return: True if allowed, False otherwise.
+    """
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+           filename.rsplit('.', 1)[1].lower() in allowed_extensions_config
 
 # --- Response Helpers ---
 def make_error_response(message, status_code, details=None):
