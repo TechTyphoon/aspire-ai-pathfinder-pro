@@ -51,8 +51,8 @@ const CareerExplorerView: React.FC<CareerExplorerViewProps> = ({ onPathSaved }) 
       alert('No report data to save or user not logged in.');
       return;
     }
+    // user_id is now taken from JWT on the backend, no need to send it in payload.
     const pathPayload = {
-      user_id: userId,
       path_name: exploredPathData.name,
       path_details_json: {
         ai_report: exploredPathData.report,

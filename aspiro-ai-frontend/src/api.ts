@@ -13,15 +13,15 @@ const apiClient = axios.create({
 
 // Optional: You can add interceptors for request or response handling globally
 // For example, to automatically add an auth token to requests:
-// apiClient.interceptors.request.use(config => {
-//   const token = localStorage.getItem('authToken'); // Example: get token
-//   if (token) {
-//     config.headers.Authorization = `Bearer ${token}`;
-//   }
-//   return config;
-// }, error => {
-//   return Promise.reject(error);
-// });
+apiClient.interceptors.request.use(config => {
+  const token = localStorage.getItem('aspiroAuthToken'); // Use the correct key from AuthContext
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
 
 // Example for response error handling (can be more sophisticated)
 // apiClient.interceptors.response.use(

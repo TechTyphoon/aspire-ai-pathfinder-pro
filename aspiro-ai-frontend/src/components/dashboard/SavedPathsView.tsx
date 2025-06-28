@@ -32,7 +32,8 @@ const SavedPathsView: React.FC<SavedPathsViewProps> = ({ isActive, setActiveTab 
     setIsLoadingPaths(true);
     setPathsError(null);
     try {
-      const response = await apiClient.get(`/user/${userId}/paths`);
+      // The backend route is now /user/paths and gets user_id from JWT
+      const response = await apiClient.get('/user/paths');
       setSavedPaths(response.data);
     } catch (err) {
       const error = err as AxiosError;
