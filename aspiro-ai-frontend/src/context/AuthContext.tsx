@@ -3,14 +3,15 @@ import React, { createContext, useState, useContext, ReactNode, useEffect } from
 
 // Define the shape of the authentication state
 interface AuthState {
-  userId: number | null;
+  userId: string | null; // Changed to string to align with JWT identity if needed, or keep number if only for display
+  token: string | null;
   isLoggedIn: boolean;
   isLoading: boolean; // To handle initial loading of auth state from localStorage
 }
 
 // Define the shape of the context value
-interface AuthContextType extends AuthState {
-  login: (userId: number) => void;
+interface AuthContextType extends Omit<AuthState, 'token'> { // Exclude token from direct context exposure if preferred
+  login: (userId: string, token: string) => void; // userId can be string or number based on API response
   logout: () => void;
 }
 
@@ -26,6 +27,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     userId: null,
+    token: null,
     isLoggedIn: false,
     isLoading: true, // Start with loading true
   });
@@ -33,30 +35,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Effect to load auth state from localStorage on initial mount
   useEffect(() => {
     try {
-      const storedUserId = localStorage.getItem('aspiroUser');
-      if (storedUserId) {
+      const storedUserId = localStorage.getItem('aspiroUserId'); // Changed key for clarity
+      const storedToken = localStorage.getItem('aspiroAuthToken');
+
+      if (storedUserId && storedToken) {
         setAuthState({
-          userId: parseInt(storedUserId, 10),
+          userId: storedUserId, // Keep as string, or parse if you strictly need number
+          token: storedToken,
           isLoggedIn: true,
           isLoading: false,
         });
       } else {
-        setAuthState(prev => ({ ...prev, isLoading: false }));
+        setAuthState(prev => ({ ...prev, isLoading: false, userId: null, token: null, isLoggedIn: false }));
       }
     } catch (error) {
       console.error("Error reading from localStorage:", error);
-      setAuthState(prev => ({ ...prev, isLoading: false }));
+      setAuthState(prev => ({ ...prev, isLoading: false, userId: null, token: null, isLoggedIn: false }));
     }
   }, []);
 
-  const login = (userId: number) => {
-    localStorage.setItem('aspiroUser', userId.toString());
-    setAuthState({ userId, isLoggedIn: true, isLoading: false });
+  const login = (userId: string, token: string) => { // userId from API might be number, convert if necessary
+    localStorage.setItem('aspiroUserId', userId.toString()); // Store userId as string
+    localStorage.setItem('aspiroAuthToken', token);
+    setAuthState({ userId: userId.toString(), token, isLoggedIn: true, isLoading: false });
   };
 
   const logout = () => {
-    localStorage.removeItem('aspiroUser');
-    setAuthState({ userId: null, isLoggedIn: false, isLoading: false });
+    localStorage.removeItem('aspiroUserId');
+    localStorage.removeItem('aspiroAuthToken');
+    setAuthState({ userId: null, token: null, isLoggedIn: false, isLoading: false });
   };
 
   // Provide the auth state and functions to children components
@@ -67,7 +74,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout }}>
+    <AuthContext.Provider value={{
+      userId: authState.userId,
+      isLoggedIn: authState.isLoggedIn,
+      isLoading: authState.isLoading,
+      login,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   );

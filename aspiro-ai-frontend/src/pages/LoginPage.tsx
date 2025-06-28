@@ -26,10 +26,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
         password,
       });
 
-      if (response.status === 200 && response.data.user_id) {
-        login(response.data.user_id);
+      // Backend returns user_id (int) and access_token (string)
+      if (response.status === 200 && response.data.user_id && response.data.access_token) {
+        // AuthContext login expects userId as string, token as string.
+        login(String(response.data.user_id), response.data.access_token);
       } else {
-        setError('Login failed. Please check your credentials.');
+        setError('Login failed. Please check your credentials or server response.');
       }
     } catch (err) {
       const error = err as AxiosError<{ error?: string }>;
