@@ -20,18 +20,23 @@ serve(async (req) => {
 
   try {
     const supabaseClient = createClient(
-      "https://pimvcujpkkndxjzhotwz.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpbXZjdWpwa2tuZHhqemhvdHd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjM1MzMsImV4cCI6MjA2NTM5OTUzM30.w1l_oggEx6qdY9l9-jCZEW6tCcArFTffbohZj0bKPKE"
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     )
 
     const { filePath, analysisType, targetRole }: RequestBody = await req.json()
+
+    console.log('Analyzing resume:', { filePath, analysisType, targetRole })
 
     // Download file from storage
     const { data: fileData, error: downloadError } = await supabaseClient.storage
       .from('resumes')
       .download(filePath)
 
-    if (downloadError) throw downloadError
+    if (downloadError) {
+      console.error('Download error:', downloadError)
+      throw new Error(`Failed to download file: ${downloadError.message}`)
+    }
 
     // Extract text from file (simplified - in production, use proper PDF/DOCX parsers)
     const fileBuffer = await fileData.arrayBuffer()
@@ -42,7 +47,7 @@ serve(async (req) => {
     // - DOCX parsing: mammoth.js or docx-parser
     const resumeText = fileContent // Simplified extraction
 
-    const geminiApiKey = "AIzaSyB5VHdV_Ya6s9bl7mMzp-GMd-oP9YRkuGk"
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
     if (!geminiApiKey) {
       throw new Error('Gemini API key not configured')
     }
@@ -70,7 +75,7 @@ After the role suggestions, provide a general analysis of the resume with two se
 ${resumeText}`
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -80,14 +85,45 @@ ${resumeText}`
           parts: [{
             text: prompt
           }]
-        }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 1,
+          topP: 1,
+          maxOutputTokens: 2048,
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          }
+        ]
       })
     })
 
     const geminiResponse = await response.json()
+    console.log('Gemini API response:', JSON.stringify(geminiResponse, null, 2))
     
+    if (!response.ok) {
+      console.error('Gemini API error:', geminiResponse)
+      throw new Error(`Gemini API error: ${geminiResponse.error?.message || 'Unknown error'}`)
+    }
+
     if (!geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text) {
-      throw new Error('Invalid response from Gemini API')
+      console.error('Invalid Gemini response structure:', geminiResponse)
+      throw new Error('Invalid response from Gemini API - no text content found')
     }
 
     const analysis = geminiResponse.candidates[0].content.parts[0].text
@@ -114,7 +150,10 @@ ${resumeText}`
   } catch (error) {
     console.error('Resume analysis error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Please check the function logs for more information'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
