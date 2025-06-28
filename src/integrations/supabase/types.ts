@@ -322,6 +322,30 @@ export type Database = {
           },
         ]
       }
+      saved_paths: {
+        Row: {
+          created_at: string | null
+          id: number
+          path_details_json: Json | null
+          path_name: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          path_details_json?: Json | null
+          path_name: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          path_details_json?: Json | null
+          path_name?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       skills: {
         Row: {
           category: string | null
