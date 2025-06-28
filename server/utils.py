@@ -1,6 +1,6 @@
 # server/utils.py
 import re
-import PyPDF2
+from pypdf import PdfReader # Changed from PyPDF2
 import docx # python-docx
 from io import BytesIO
 from flask import jsonify, current_app # current_app for logger
@@ -67,9 +67,9 @@ def extract_text_from_file(file_storage):
         # Ensure stream is at the beginning before reading
         file_storage.seek(0)
         if filename.endswith('.pdf'):
-            pdf_reader = PyPDF2.PdfReader(BytesIO(file_storage.read()))
-            for page_num in range(len(pdf_reader.pages)):
-                text += pdf_reader.pages[page_num].extract_text() or "" # Ensure None is handled
+            reader = PdfReader(BytesIO(file_storage.read()))
+            for page in reader.pages:
+                text += page.extract_text() or "" # Ensure None is handled
         elif filename.endswith('.docx'):
             doc = docx.Document(BytesIO(file_storage.read()))
             for para in doc.paragraphs:

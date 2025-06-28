@@ -25,9 +25,15 @@ def test_save_path_authenticated_success(authenticated_client):
     assert "path_id" in json_data
 
     # Verify in database
-    path = SavedPath.query.get(json_data["path_id"])
+    # Need db from a fixture to use db.session.get
+    # For now, assuming 'init_database' fixture provides app context for SavedPath.query.get to work
+    # This will be updated if direct db session access is preferred in tests.
+    from server.models import db # Import db directly for session access if needed
+    path = db.session.get(SavedPath, json_data["path_id"])
     assert path is not None
-    assert path.user_id == user_id
+    # user_id from authenticated_client fixture is the JWT identity (string).
+    # path.user_id is from the database model (Integer).
+    assert path.user_id == int(user_id)
     assert path.path_name == path_data["path_name"]
     assert path.path_details_json == path_data["path_details_json"]
 
@@ -66,7 +72,8 @@ def test_get_user_paths_authenticated_success(authenticated_client):
     assert path_data1["path_name"] in path_names_retrieved
     assert path_data2["path_name"] in path_names_retrieved
     for p in paths_data:
-        assert p["user_id"] == user_id
+        # p["user_id"] from to_dict() is likely an int. user_id from fixture is str.
+        assert p["user_id"] == int(user_id)
 
 def test_get_user_paths_no_paths(authenticated_client):
     """Test retrieving paths when the user has none."""
@@ -98,7 +105,8 @@ def test_delete_path_authenticated_success(authenticated_client):
     assert delete_response.get_json()["message"] == "Career path deleted successfully"
 
     # Verify it's deleted
-    assert SavedPath.query.get(path_id) is None
+    from server.models import db # ensure db is imported
+    assert db.session.get(SavedPath, path_id) is None
 
 def test_delete_path_not_found(authenticated_client):
     """Test deleting a path that does not exist."""
@@ -137,4 +145,5 @@ def test_delete_path_not_owned(authenticated_client, client, new_user_data):
     assert delete_response_user1.get_json()["error"] == "Forbidden: You do not own this path"
 
     # Verify path still exists
-    assert SavedPath.query.get(user2_path_id) is not None
+    from server.models import db # ensure db is imported
+    assert db.session.get(SavedPath, user2_path_id) is not None

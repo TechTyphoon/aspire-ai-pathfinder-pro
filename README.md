@@ -135,12 +135,14 @@ ASPIRO AI is a full-stack web application designed to assist users in their care
     ```
 
 3.  **Environment Variables (Frontend):**
-    The frontend `src/api.ts` is configured to connect to `http://localhost:5000/api`. If your backend runs on a different URL, you'll need to update this base URL in `aspiro-ai-frontend/src/api.ts`.
-    For Vite projects, environment variables are typically managed via `.env` files in the frontend directory (e.g., `aspiro-ai-frontend/.env`). Example:
-    ```env
-    VITE_API_BASE_URL=http://localhost:5000/api
-    ```
-    And then use `import.meta.env.VITE_API_BASE_URL` in `api.ts`. (This change has not been implemented in the current code but is standard practice).
+    The frontend API base URL is configured in `aspiro-ai-frontend/src/api.ts` using an environment variable `VITE_API_BASE_URL`.
+    *   Create a file named `.env.development` (or `.env.local`, `.env`) in the `aspiro-ai-frontend/` directory.
+    *   Add the following line, adjusting the URL if your backend runs elsewhere:
+        ```env
+        VITE_API_BASE_URL=http://localhost:5000/api
+        ```
+    *   For production builds, you can set this environment variable during your build process or in a `.env.production` file.
+    *   The `api.ts` file uses `import.meta.env.VITE_API_BASE_URL` and defaults to `http://localhost:5000/api` if the variable is not set.
 
 4.  **Run the Frontend Development Server:**
     Using npm:

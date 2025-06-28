@@ -2,8 +2,11 @@
 import axios from 'axios';
 
 // Create an axios instance with a base URL
+// Vite exposes env variables prefixed with VITE_ on import.meta.env
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
 const apiClient = axios.create({
-  baseURL: 'http://localhost:5000/api', // Your Flask backend API base URL
+  baseURL: API_BASE_URL,
   timeout: 10000, // Optional: timeout after 10 seconds
   headers: {
     'Content-Type': 'application/json',

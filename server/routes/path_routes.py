@@ -23,7 +23,7 @@ def save_career_path_route():
         if len(path_name) > MAX_PATH_NAME_LENGTH:
             return make_error_response(f"Path name exceeds maximum length of {MAX_PATH_NAME_LENGTH} characters", 400)
 
-        user = User.query.get(current_user_id) # Fetch user based on JWT identity
+        user = db.session.get(User, current_user_id) # Fetch user based on JWT identity
         if not user:
             # This case should ideally not happen if JWT is valid and user exists
             current_app.logger.error(f"User with ID {current_user_id} from JWT not found in database.")
@@ -55,12 +55,12 @@ def get_user_paths_route():
     current_user_id = get_jwt_identity()
     try:
         # user_id parameter is removed, current_user_id from JWT is used
-        user = User.query.get(current_user_id)
+        user = db.session.get(User, current_user_id)
         if not user:
             current_app.logger.error(f"User with ID {current_user_id} from JWT not found in database.")
             return make_error_response("Authenticated user not found in database", 404)
 
-        paths = SavedPath.query.filter_by(user_id=current_user_id).all()
+        paths = SavedPath.query.filter_by(user_id=current_user_id).all() # Keep filter_by for non-primary key query
         paths_data = [path.to_dict() for path in paths]
         return jsonify(paths_data), 200
 
@@ -76,7 +76,7 @@ def get_user_paths_route():
 def delete_career_path_route(path_id):
     current_user_id = get_jwt_identity() # Get current user's ID
     try:
-        path_to_delete = SavedPath.query.get(path_id)
+        path_to_delete = db.session.get(SavedPath, path_id)
 
         if not path_to_delete:
             return make_error_response("Path not found", 404)
