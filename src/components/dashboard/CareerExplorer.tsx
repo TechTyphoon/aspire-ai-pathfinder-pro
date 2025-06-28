@@ -65,22 +65,11 @@ export const CareerExplorer = () => {
     }
 
     try {
-      // Save to Supabase database
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        toast({
-          title: "Authentication required",
-          description: "Please sign in to save career paths",
-          variant: "destructive"
-        })
-        return
-      }
-
+      // Save to Supabase database without user authentication
       const { error } = await supabase
         .from('saved_paths')
         .insert({
-          user_id: user.id,
+          user_id: null, // No authentication required
           path_name: `${careerField} Career Path`,
           path_details_json: {
             field: careerField,

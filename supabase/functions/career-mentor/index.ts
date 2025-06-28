@@ -18,7 +18,7 @@ serve(async (req) => {
   try {
     const { question }: RequestBody = await req.json()
 
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+    const geminiApiKey = "AIzaSyB5VHdV_Ya6s9bl7mMzp-GMd-oP9YRkuGk"
     if (!geminiApiKey) {
       throw new Error('Gemini API key not configured')
     }
@@ -68,6 +68,7 @@ Provide a direct, helpful, and expert answer based on this structure.`
       },
     )
   } catch (error) {
+    console.error('Career mentor error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

@@ -28,17 +28,10 @@ export const SavedPaths = () => {
 
   const loadSavedPaths = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        setIsLoading(false)
-        return
-      }
-
+      // Load all saved paths since we're not using authentication
       const { data, error } = await supabase
         .from('saved_paths')
         .select('*')
-        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error

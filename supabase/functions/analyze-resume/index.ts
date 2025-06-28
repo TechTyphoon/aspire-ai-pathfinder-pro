@@ -20,9 +20,8 @@ serve(async (req) => {
 
   try {
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      "https://pimvcujpkkndxjzhotwz.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBpbXZjdWpwa2tuZHhqemhvdHd6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk4MjM1MzMsImV4cCI6MjA2NTM5OTUzM30.w1l_oggEx6qdY9l9-jCZEW6tCcArFTffbohZj0bKPKE"
     )
 
     const { filePath, analysisType, targetRole }: RequestBody = await req.json()
@@ -43,7 +42,7 @@ serve(async (req) => {
     // - DOCX parsing: mammoth.js or docx-parser
     const resumeText = fileContent // Simplified extraction
 
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+    const geminiApiKey = "AIzaSyB5VHdV_Ya6s9bl7mMzp-GMd-oP9YRkuGk"
     if (!geminiApiKey) {
       throw new Error('Gemini API key not configured')
     }
@@ -113,6 +112,7 @@ ${resumeText}`
       },
     )
   } catch (error) {
+    console.error('Resume analysis error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
