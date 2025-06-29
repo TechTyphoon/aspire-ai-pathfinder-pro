@@ -18,12 +18,26 @@ from .routes.path_routes import path_bp
 # Utils are used within blueprints, no direct import needed here unless for app-level setup
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv() # Load environment variables from .env file at the module level
 
 def create_app(config_overrides=None):
-    app = Flask(__name__, instance_relative_config=True) # Enable instance folder
+    """
+    Application factory for the Flask app.
+    Initializes and configures the Flask application, extensions, and blueprints.
+
+    Args:
+        config_overrides (dict, optional): A dictionary of configuration values
+                                           to override default settings, primarily used for testing.
+                                           Defaults to None.
+
+    Returns:
+        Flask: The configured Flask application instance.
+    """
+    app = Flask(__name__, instance_relative_config=True) # Enable instance folder for e.g. SQLite DB
 
     # --- Default Configuration ---
+    # Load configurations from environment variables or provide defaults.
+    # Instance folder is used for the default SQLite database path.
     app.config.from_mapping(
         SECRET_KEY=os.getenv('SECRET_KEY', 'a_very_default_secret_key_for_flask_session_etc'),
         JWT_SECRET_KEY=os.getenv('JWT_SECRET_KEY', 'a_very_default_jwt_secret_key_12345'),
@@ -36,37 +50,39 @@ def create_app(config_overrides=None):
     )
     app.config['MAX_FILE_SIZE_BYTES'] = app.config['MAX_FILE_SIZE_MB'] * 1024 * 1024
 
-    # Create instance folder if it doesn't exist
+    # Create instance folder if it doesn't exist (e.g., for SQLite database)
     try:
         os.makedirs(app.instance_path, exist_ok=True)
     except OSError:
+        # Log an error if instance path creation fails, though app might still run
+        # if the instance path is not strictly needed for all configurations.
         app.logger.error(f"Could not create instance path at {app.instance_path}")
-        pass # Or handle error more gracefully
+        pass
 
-    # Apply overrides if provided (e.g., for testing)
+    # Apply configuration overrides, typically for testing environment
     if config_overrides:
         app.config.from_mapping(config_overrides)
 
-    # Gemini API Key Configuration & Model Initialization
-    # Use app.config.get as it might be overridden by test config to None
+    # --- Initialize Google Generative AI (Gemini) ---
+    # The API key is loaded from app.config, which respects .env and overrides.
     GEMINI_API_KEY = app.config.get('GEMINI_API_KEY')
-    gemini_model_instance = None # Initialize to None
+    gemini_model_instance = None
     if not GEMINI_API_KEY:
-        app.logger.warning("GEMINI_API_KEY not found in .env file. AI features will be disabled.")
+        app.logger.warning("GEMINI_API_KEY not found in environment or configuration. AI features will be disabled.")
     else:
         try:
             genai.configure(api_key=GEMINI_API_KEY)
-            gemini_model_instance = genai.GenerativeModel('gemini-pro')
-            app.logger.info("Gemini AI client configured successfully.")
+            gemini_model_instance = genai.GenerativeModel('gemini-pro') # Or other desired model
+            app.logger.info("Google Generative AI client configured successfully with 'gemini-pro' model.")
         except Exception as e:
-            app.logger.error(f"Error configuring Gemini AI client: {e}")
+            app.logger.error(f"Error configuring Google Generative AI client: {e}")
 
-    # Store the model instance in app.config so blueprints can access it
+    # Store the Gemini model instance in app.config for access in blueprints
     app.config['GEMINI_MODEL_INSTANCE'] = gemini_model_instance
 
-    # --- Initialize Extensions ---
-    db.init_app(app)
-    Migrate(app, db) # Initialize Flask-Migrate
+    # --- Initialize Flask Extensions ---
+    db.init_app(app) # Initialize SQLAlchemy
+    Migrate(app, db) # Initialize Flask-Migrate for database migrations
 
     # Initialize Bcrypt and ensure it's stored in extensions
     # Bcrypt() constructor can take app, or use init_app. Using constructor style.
@@ -83,28 +99,28 @@ def create_app(config_overrides=None):
     JWTManager(app) # Initialize JWTManager
 
     # --- Register Blueprints ---
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(ai_bp)
-    app.register_blueprint(path_bp)
+    # Blueprints organize routes into distinct modules.
+    app.register_blueprint(auth_bp) # Authentication routes (e.g., /register, /login)
+    app.register_blueprint(ai_bp)   # AI-powered routes (e.g., /analyze-resume)
+    app.register_blueprint(path_bp) # Career path management routes (e.g., /save-path)
 
-    # --- Database Creation (Handled by Flask-Migrate now) ---
-    # # This ensures tables are created within the app context, useful for dev or first run.
-    # # In production, migrations (e.g., Flask-Migrate) are preferred.
-    # with app.app_context():
-    #     db.create_all()
-    #     app.logger.info('Database tables checked/created.')
+    # Database creation is now handled by Flask-Migrate.
+    # The old `db.create_all()` call has been removed.
+    # To create/update database schema:
+    # 1. `flask db migrate -m "description of changes"` (from project root, with FLASK_APP=server.app)
+    # 2. `flask db upgrade`
 
     # --- Root Route for Health Check ---
     @app.route('/')
     def index():
+        """
+        Health check endpoint for the backend.
+        Returns a simple JSON message indicating the server is running.
+        """
         return jsonify({"message": "Welcome to ASPIRO AI Backend! Server is running."}), 200
 
     return app
 
-# This setup is for running with `flask run` or a WSGI server like Gunicorn.
-# If you want to run `python app.py` directly, you'd do:
-# if __name__ == '__main__':
-#     app = create_app()
-#     app.run(debug=True)
-
-app = create_app() # Create the app instance for WSGI servers or `flask run`
+# Create the Flask app instance when this file is imported or run.
+# This instance is used by WSGI servers like Gunicorn or when running with `flask run`.
+app = create_app()

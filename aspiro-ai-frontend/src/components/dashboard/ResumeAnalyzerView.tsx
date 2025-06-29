@@ -1,31 +1,63 @@
 // src/components/dashboard/ResumeAnalyzerView.tsx
+/**
+ * ResumeAnalyzerView component.
+ *
+ * Allows users to upload their resume and receive AI-powered analysis.
+ * It offers two main functionalities:
+ * 1. Analyze the resume for a specific target role.
+ * 2. Get AI suggestions for suitable roles based on the resume.
+ *
+ * Features:
+ * - File input for resume (PDF, DOCX, TXT).
+ * - Text input for target role (for specific analysis).
+ * - Calls backend API endpoints `/api/analyze-resume` and `/api/suggest-roles`.
+ * - Displays AI-generated analysis or role suggestions.
+ * - Handles loading states and error messages.
+ * - Requires user to be logged in (via `useAuth` context).
+ */
 import React, { useState, ChangeEvent } from 'react';
 import { CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import apiClient from '../../api';
-import { useAuth } from '../../context/AuthContext'; // Assuming useAuth can be used here
+import { useAuth } from '../../context/AuthContext';
 import { AxiosError } from 'axios';
 
+/**
+ * ResumeAnalyzerView functional component.
+ * This component does not take any props.
+ */
 const ResumeAnalyzerView: React.FC = () => {
-  const { userId, isLoggedIn } = useAuth(); // Check if needed, or pass userId as prop
+  const { userId, isLoggedIn } = useAuth(); // Auth context for user session state
 
+  // State for managing the selected file, input fields, API responses, loading, and errors.
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [targetRole, setTargetRole] = useState<string>('');
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [suggestionsResult, setSuggestionsResult] = useState<string | null>(null);
-  const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null); // For specific role analysis
+  const [suggestionsResult, setSuggestionsResult] = useState<string | null>(null); // For role suggestions
+  const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false); // True when an AI request is in progress
+  const [aiError, setAiError] = useState<string | null>(null); // Stores error messages from AI processing
 
+  /**
+   * Handles changes to the file input.
+   * Sets the selected file in state and clears previous results/errors.
+   * @param {ChangeEvent<HTMLInputElement>} event - The file input change event.
+   */
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setSelectedFile(event.target.files[0]);
+      // Reset states when a new file is selected
       setAnalysisResult(null);
       setSuggestionsResult(null);
       setAiError(null);
     }
   };
 
+  /**
+   * Handles the "Analyze for Role" action.
+   * Validates inputs, constructs FormData, and calls the `/api/analyze-resume` endpoint.
+   * Updates state with the analysis result or an error message.
+   */
   const handleAnalyzeResume = async () => {
-    if (!isLoggedIn || !userId) {
+    if (!isLoggedIn) { // userId is implicitly checked by isLoggedIn from useAuth
         setAiError('You must be logged in to analyze a resume.');
         return;
     }
@@ -60,8 +92,13 @@ const ResumeAnalyzerView: React.FC = () => {
     }
   };
 
+  /**
+   * Handles the "Suggest Roles" action.
+   * Validates that a file is selected, constructs FormData, and calls the `/api/suggest-roles` endpoint.
+   * Updates state with the role suggestions or an error message.
+   */
   const handleSuggestRoles = async () => {
-    if (!isLoggedIn || !userId) {
+    if (!isLoggedIn) {
         setAiError('You must be logged in to get role suggestions.');
         return;
     }

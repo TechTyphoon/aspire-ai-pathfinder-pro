@@ -1,78 +1,133 @@
 // src/context/AuthContext.tsx
+/**
+ * Authentication Context for managing user login state and JWT tokens.
+ *
+ * Provides an `AuthProvider` component to wrap the application and a `useAuth` hook
+ * for components to access authentication state (userId, isLoggedIn, isLoading)
+ * and functions (login, logout).
+ *
+ * JWT tokens are stored in localStorage and automatically managed by this context
+ * and the `apiClient` interceptor.
+ */
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 
-// Define the shape of the authentication state
+/**
+ * Defines the shape of the internal authentication state managed by the provider.
+ * @interface AuthState
+ * @property {string | null} userId - The ID of the authenticated user. Stored as a string.
+ * @property {string | null} token - The JWT authentication token.
+ * @property {boolean} isLoggedIn - True if the user is currently logged in.
+ * @property {boolean} isLoading - True while initially loading auth state from localStorage.
+ */
 interface AuthState {
-  userId: string | null; // Changed to string to align with JWT identity if needed, or keep number if only for display
+  userId: string | null;
   token: string | null;
   isLoggedIn: boolean;
-  isLoading: boolean; // To handle initial loading of auth state from localStorage
+  isLoading: boolean;
 }
 
-// Define the shape of the context value
-interface AuthContextType extends Omit<AuthState, 'token'> { // Exclude token from direct context exposure if preferred
-  login: (userId: string, token: string) => void; // userId can be string or number based on API response
+/**
+ * Defines the shape of the value provided by the AuthContext.
+ * Note: `token` is intentionally omitted from direct context exposure to components;
+ * its management is handled internally and by `api.ts`.
+ * @interface AuthContextType
+ * @extends Omit<AuthState, 'token'>
+ * @property {(userId: string, token: string) => void} login - Function to log in the user.
+ * @property {() => void} logout - Function to log out the user.
+ */
+interface AuthContextType extends Omit<AuthState, 'token'> {
+  login: (userId: string, token: string) => void;
   logout: () => void;
 }
 
-// Create the context with a default undefined value initially
-// This helps catch cases where the context is used outside a provider
+/**
+ * React Context for authentication.
+ * Initialized with `undefined` to ensure it's used within an `AuthProvider`.
+ */
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Define props for the AuthProvider component
+/**
+ * Props for the {@link AuthProvider} component.
+ * @interface AuthProviderProps
+ * @property {ReactNode} children - The child components that will have access to this context.
+ */
 interface AuthProviderProps {
   children: ReactNode;
 }
 
+/**
+ * Provides authentication state and functions to its children components.
+ * Manages user ID and JWT token in localStorage and React state.
+ * Handles initial loading of authentication status from localStorage.
+ *
+ * @component AuthProvider
+ * @param {AuthProviderProps} props - Props for the component.
+ * @returns {React.FC<AuthProviderProps>}
+ */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     userId: null,
     token: null,
     isLoggedIn: false,
-    isLoading: true, // Start with loading true
+    isLoading: true, // Start with loading true to check localStorage
   });
 
-  // Effect to load auth state from localStorage on initial mount
+  /**
+   * Effect hook to load authentication state (userId and token) from localStorage
+   * when the component mounts. Updates `authState` accordingly.
+   */
   useEffect(() => {
     try {
-      const storedUserId = localStorage.getItem('aspiroUserId'); // Changed key for clarity
+      const storedUserId = localStorage.getItem('aspiroUserId');
       const storedToken = localStorage.getItem('aspiroAuthToken');
 
       if (storedUserId && storedToken) {
         setAuthState({
-          userId: storedUserId, // Keep as string, or parse if you strictly need number
+          userId: storedUserId,
           token: storedToken,
           isLoggedIn: true,
           isLoading: false,
         });
       } else {
+        // No stored session, or incomplete session data
         setAuthState(prev => ({ ...prev, isLoading: false, userId: null, token: null, isLoggedIn: false }));
       }
     } catch (error) {
-      console.error("Error reading from localStorage:", error);
+      // Handle potential errors from localStorage access (e.g., in restricted environments)
+      console.error("Error reading authentication state from localStorage:", error);
       setAuthState(prev => ({ ...prev, isLoading: false, userId: null, token: null, isLoggedIn: false }));
     }
-  }, []);
+  }, []); // Empty dependency array ensures this runs only on mount
 
-  const login = (userId: string, token: string) => { // userId from API might be number, convert if necessary
-    localStorage.setItem('aspiroUserId', userId.toString()); // Store userId as string
+  /**
+   * Logs in the user by storing their ID and JWT token in localStorage and updating the auth state.
+   * @function login
+   * @param {string} userId - The user's ID (typically from the API login response, converted to string).
+   * @param {string} token - The JWT access token.
+   */
+  const login = (userId: string, token: string) => {
+    localStorage.setItem('aspiroUserId', userId.toString());
     localStorage.setItem('aspiroAuthToken', token);
     setAuthState({ userId: userId.toString(), token, isLoggedIn: true, isLoading: false });
   };
 
+  /**
+   * Logs out the user by removing their ID and JWT token from localStorage and resetting the auth state.
+   * @function logout
+   */
   const logout = () => {
     localStorage.removeItem('aspiroUserId');
     localStorage.removeItem('aspiroAuthToken');
     setAuthState({ userId: null, token: null, isLoggedIn: false, isLoading: false });
   };
 
-  // Provide the auth state and functions to children components
-  // Do not render children until loading is complete to avoid flicker or premature access
+  // While loading initial auth state, display a loading message or spinner.
+  // This prevents rendering parts of the app that depend on auth state prematurely.
   if (authState.isLoading) {
-    // Optionally return a loading spinner or null
     return <div className="min-h-screen flex items-center justify-center bg-background text-text-DEFAULT">Loading authentication...</div>;
   }
 
+  // Provide the public parts of authState and the login/logout functions to children.
   return (
     <AuthContext.Provider value={{
       userId: authState.userId,
@@ -86,7 +141,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 };
 
-// Custom hook to use the AuthContext
+/**
+ * Custom hook for easy consumption of the AuthContext.
+ * Provides access to `userId`, `isLoggedIn`, `isLoading`, `login()`, and `logout()`.
+ * Throws an error if used outside of an `AuthProvider`.
+ *
+ * @returns {AuthContextType} The authentication context value.
+ * @throws {Error} If used outside of an AuthProvider.
+ * @example
+ * const { isLoggedIn, login, logout } = useAuth();
+ */
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {

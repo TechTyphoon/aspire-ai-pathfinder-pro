@@ -1,9 +1,28 @@
 # server/prompts.py
+"""
+This module contains functions that generate prompts for interacting with
+the Google Generative AI (Gemini) model. Each function returns a list of strings,
+which, when joined, form the complete prompt for a specific AI task.
+"""
 
-def get_resume_feedback_prompt(target_role, resume_text):
+def get_resume_feedback_prompt(target_role: str, resume_text: str) -> list[str]:
+    """
+    Generates a prompt for the AI to review a resume for a specific target role.
+
+    The AI is instructed to act as an expert career advisor and provide feedback
+    on ATS compatibility, strengths, areas for improvement, keyword analysis,
+    and an overall impression.
+
+    Args:
+        target_role (str): The job role the resume is being targeted for.
+        resume_text (str): The text content of the resume.
+
+    Returns:
+        list[str]: A list of strings forming the prompt.
+    """
     return [
         "You are an expert career advisor and resume reviewer.",
-        "Analyze the following resume text for the target role of an ATS (Applicant Tracking System) and human recruiter:",
+        "Analyze the following resume text for the target role for an ATS (Applicant Tracking System) and human recruiter:",
         f"Target Role: {target_role}\n\n",
         "Resume Text:\n",
         "```\n",
@@ -18,7 +37,19 @@ def get_resume_feedback_prompt(target_role, resume_text):
         "\nFormat your response clearly, using markdown for headings and lists."
     ]
 
-def get_role_suggestion_prompt(resume_text):
+def get_role_suggestion_prompt(resume_text: str) -> list[str]:
+    """
+    Generates a prompt for the AI to suggest suitable career roles based on resume text.
+
+    The AI is asked to act as a career counselor and suggest 3-5 roles,
+    explaining the fit, key skills, and potential industries for each.
+
+    Args:
+        resume_text (str): The text content of the resume.
+
+    Returns:
+        list[str]: A list of strings forming the prompt.
+    """
     return [
         "You are an expert career counselor and talent acquisition specialist.",
         "Based on the following resume text, identify the top 3-5 most suitable career roles for this individual. ",
@@ -35,7 +66,19 @@ def get_role_suggestion_prompt(resume_text):
         "Format your response as a list of suggestions, using markdown for clarity (e.g., headings for each role)."
     ]
 
-def get_career_exploration_prompt(career_field):
+def get_career_exploration_prompt(career_field: str) -> list[str]:
+    """
+    Generates a prompt for the AI to create a detailed report on a specified career field.
+
+    The AI is instructed to act as a career analyst and cover aspects like overview,
+    responsibilities, skills, education, salary, outlook, pros/cons, and example job titles.
+
+    Args:
+        career_field (str): The name of the career field to generate a report for.
+
+    Returns:
+        list[str]: A list of strings forming the prompt.
+    """
     return [
         f"You are an expert career analyst and industry researcher.",
         f"Generate a detailed report on the career field: '{career_field}'.",

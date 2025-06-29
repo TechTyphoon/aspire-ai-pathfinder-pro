@@ -1,19 +1,28 @@
 # server/routes/auth_routes.py
+"""
+Authentication routes for user registration and login.
+Handles creating new user accounts and issuing JWTs for authentication.
+"""
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import create_access_token # Import create_access_token
-from ..models import User, db # Assuming models.py is one level up
-from ..utils import make_error_response, is_valid_email, MAX_INPUT_STRING_LENGTH
-# To get bcrypt, we'll import it from the main app instance when blueprint is registered, or pass it.
-# For now, let's assume we can import it if app.py initializes it globally.
-# A better way is to get it from current_app.extensions['bcrypt'] or similar.
-# For simplicity, if app.py defines `bcrypt = Bcrypt(app)`, we might need to pass it or import from app.
-# Let's try importing from the main app module.
+from flask_jwt_extended import create_access_token
+from sqlalchemy.exc import SQLAlchemyError # For more specific DB error handling
 
+from ..models import User, db
+from ..utils import make_error_response, is_valid_email, MAX_INPUT_STRING_LENGTH
+
+# Blueprint for authentication routes, prefixed with /api
 auth_bp = Blueprint('auth_bp', __name__, url_prefix='/api')
 
 @auth_bp.route('/register', methods=['POST'])
 def register_user():
-    # bcrypt instance will be available via current_app after app initialization
+    """
+    Registers a new user.
+    Expects 'email' and 'password' in JSON request body.
+    Validates input, checks for existing users, hashes password, and stores user.
+    Returns:
+        JSON response with success message and user_id, or error message.
+    """
+    # Retrieve Bcrypt instance from current_app extensions, initialized in app.py
     bcrypt_instance = current_app.extensions.get('bcrypt')
     if not bcrypt_instance:
         current_app.logger.error("Bcrypt not initialized on Flask app.")
@@ -47,18 +56,30 @@ def register_user():
 
         db.session.add(new_user)
         db.session.commit()
+        current_app.logger.info(f"User registered successfully: {email} (ID: {new_user.id})")
         return jsonify({"message": "User registered successfully", "user_id": new_user.id}), 201
 
-    except Exception as e: # Catch generic Exception for now, can be more specific
+    except SQLAlchemyError as e:
         db.session.rollback()
-        current_app.logger.error(f"Error during registration: {e}")
-        return make_error_response("Registration failed. Please try again.", 500, details=str(e))
+        current_app.logger.error(f"Database error during registration for {email}: {e}", exc_info=True)
+        return make_error_response("Registration failed due to a database error.", 500)
+    except Exception as e:
+        db.session.rollback() # Ensure rollback for any other unexpected errors
+        current_app.logger.error(f"Unexpected error during registration for {email}: {e}", exc_info=True)
+        return make_error_response("Registration failed. Please try again.", 500)
 
 @auth_bp.route('/login', methods=['POST'])
 def login_user():
+    """
+    Logs in an existing user.
+    Expects 'email' and 'password' in JSON request body.
+    Validates credentials and returns a JWT access token upon success.
+    Returns:
+        JSON response with success message, user_id, access_token, or error message.
+    """
     bcrypt_instance = current_app.extensions.get('bcrypt')
     if not bcrypt_instance:
-        current_app.logger.error("Bcrypt not initialized on Flask app.")
+        current_app.logger.error("Bcrypt not initialized on Flask app for login.")
         return make_error_response("Server configuration error for hashing.", 500)
 
     try:
@@ -80,14 +101,16 @@ def login_user():
         if user and bcrypt_instance.check_password_hash(user.password_hash, password):
             # Create JWT token
             access_token = create_access_token(identity=str(user.id)) # Use stringified user.id as the identity
+            current_app.logger.info(f"User login successful for email: {email} (ID: {user.id})")
             return jsonify({
                 "message": "Login successful",
                 "user_id": user.id, # Keep user_id as int in response for convenience if clients expect it
                 "access_token": access_token
             }), 200
         else:
+            current_app.logger.warning(f"Login attempt failed for email: {email}")
             return make_error_response("Invalid email or password", 401)
 
     except Exception as e:
-        current_app.logger.error(f"Unexpected error during login: {e}")
-        return make_error_response("An unexpected server error occurred during login.", 500, details=str(e))
+        current_app.logger.error(f"Unexpected error during login for email {data.get('email', 'N/A')}: {e}", exc_info=True)
+        return make_error_response("An unexpected server error occurred during login.", 500)
