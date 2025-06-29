@@ -1,32 +1,48 @@
 // src/pages/DashboardPage.tsx
-import React, { useState, useEffect, useCallback } // Removed ChangeEvent as it's moved
-from 'react';
+/**
+ * DashboardPage component - the main interface for authenticated users.
+ *
+ * This component provides a tabbed navigation to different a_i_features:
+ * - Resume Analyzer
+ * - Career Explorer
+ * - Saved Paths
+ * - AI Assistant
+ *
+ * It manages the active tab state and renders the corresponding view component.
+ * Most data fetching and state management specific to each feature are delegated
+ * to these child view components.
+ */
+import React, { useState } from 'react';
 import clsx from 'clsx';
-import { DocumentTextIcon, MagnifyingGlassIcon, BookmarkIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
-// Removed API client, useAuth from here as they will be used in child components primarily
-// However, useAuth might be needed if DashboardPage itself needs userId for some reason. Let's keep it for now.
-import { useAuth } from '../context/AuthContext';
+import {
+    DocumentTextIcon,
+    MagnifyingGlassIcon,
+    BookmarkIcon,
+    ChatBubbleLeftEllipsisIcon
+} from '@heroicons/react/24/outline';
+import { useAuth } from '../context/AuthContext'; // Used for basic login check
 
-// Import new view components
+// Import view components for each tab
 import ResumeAnalyzerView from '../components/dashboard/ResumeAnalyzerView';
 import CareerExplorerView from '../components/dashboard/CareerExplorerView';
 import SavedPathsView from '../components/dashboard/SavedPathsView';
 import AiAssistantView from '../components/dashboard/AiAssistantView';
 
+/**
+ * Type definition for the names of the tabs available on the dashboard.
+ * Exported because `SavedPathsView` uses it for its `setActiveTab` prop type.
+ */
+export type TabName = 'Resume Analyzer' | 'Career Explorer' | 'Saved Paths' | 'AI Assistant';
 
-export type TabName = 'Resume Analyzer' | 'Career Explorer' | 'Saved Paths' | 'AI Assistant'; // Export for SavedPathsView
-
-// Removed SavedPathData interface, it's now in SavedPathsView or relevant components
-
+/**
+ * DashboardPage functional component.
+ * Renders the main dashboard UI with tab navigation.
+ */
 const DashboardPage: React.FC = () => {
-  const { isLoggedIn } = useAuth(); // Keep to check if user is logged in for general page access
-  const [activeTab, setActiveTab] = useState<TabName>('Resume Analyzer');
+  const { isLoggedIn } = useAuth(); // Check if user is logged in for general page access
+  const [activeTab, setActiveTab] = useState<TabName>('Resume Analyzer'); // Default active tab
 
-  // State related to specific tabs has been moved to respective child components:
-  // - savedPaths, isLoadingPaths, pathsError -> SavedPathsView
-  // - selectedFile, targetRole, analysisResult, suggestionsResult, isLoadingAi, aiError -> ResumeAnalyzerView
-  // - careerFieldInput, exploredPathData, isReportModalOpen, isLoadingReport, reportError -> CareerExplorerView
-
+  // Configuration for the dashboard tabs: name and corresponding icon.
   const tabs: { name: TabName; icon: React.ElementType }[] = [
     { name: 'Resume Analyzer', icon: DocumentTextIcon },
     { name: 'Career Explorer', icon: MagnifyingGlassIcon },
@@ -39,8 +55,15 @@ const DashboardPage: React.FC = () => {
     setActiveTab('Saved Paths');
   };
 
+  /**
+   * Renders the content for the currently active tab.
+   * Delegates rendering to specific view components based on `activeTab` state.
+   * Includes a check for `isLoggedIn` as a failsafe, though routing in `App.tsx`
+   * should primarily handle access control to the dashboard.
+   * @returns {React.ReactNode} The JSX content for the active tab.
+   */
   const renderContent = () => {
-    if (!isLoggedIn) { // Should ideally be handled by App.tsx routing, but good failsafe
+    if (!isLoggedIn) {
       return <div className="text-center py-12 text-xl">Please log in to access the dashboard.</div>;
     }
 
@@ -48,15 +71,17 @@ const DashboardPage: React.FC = () => {
       case 'Resume Analyzer':
         return <ResumeAnalyzerView />;
       case 'Career Explorer':
+        // onPathSaved callback allows CareerExplorerView to trigger a tab change after saving a path.
         return <CareerExplorerView onPathSaved={handlePathSavedInExplorer} />;
       case 'Saved Paths':
-        // Pass isActive to ensure it fetches data when tab becomes active
-        // Pass setActiveTab for the "Explore Careers" button within SavedPathsView
+        // isActive prop helps SavedPathsView determine when to fetch its data.
+        // setActiveTab prop allows SavedPathsView to navigate to other tabs (e.g., "Explore Careers" button).
         return <SavedPathsView isActive={activeTab === 'Saved Paths'} setActiveTab={setActiveTab} />;
       case 'AI Assistant':
         return <AiAssistantView />;
       default:
-        return null;
+        // Should not happen if TabName type is correctly used.
+        return <div className="text-center py-12 text-xl">Unknown tab selected.</div>;
     }
   };
 

@@ -1,23 +1,53 @@
 // src/components/dashboard/CareerExplorerView.tsx
+/**
+ * CareerExplorerView component.
+ *
+ * Allows users to input a career field and receive an AI-generated report
+ * about that field. The report is displayed in a modal, and users can
+ * choose to save the explored path.
+ *
+ * Features:
+ * - Input for career field.
+ * - Calls backend API endpoint `/api/explore-path` to get an AI report.
+ * - Displays the report in a modal.
+ * - Allows saving the explored path via `/api/save-path`.
+ * - Uses `useAuth` for login status and `userId` for saving paths.
+ * - Notifies parent component (DashboardPage) when a path is saved via `onPathSaved` callback.
+ */
 import React, { useState } from 'react';
-import { PlusCircleIcon, XMarkIcon, MagnifyingGlassIcon as ExploreIcon } from '@heroicons/react/24/outline'; // Renamed MagnifyingGlassIcon to avoid conflict
+import { PlusCircleIcon, XMarkIcon, MagnifyingGlassIcon as ExploreIcon } from '@heroicons/react/24/outline';
 import apiClient from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { AxiosError } from 'axios';
 
+/**
+ * Props for the CareerExplorerView component.
+ * @interface CareerExplorerViewProps
+ * @property {() => void} onPathSaved - Callback function invoked when a career path is successfully saved.
+ *                                      Typically used to trigger a refresh or navigation in the parent component.
+ */
 interface CareerExplorerViewProps {
-  onPathSaved: () => void; // Callback to refresh saved paths list in parent
+  onPathSaved: () => void;
 }
 
+/**
+ * CareerExplorerView functional component.
+ * @param {CareerExplorerViewProps} props - The props for the component.
+ */
 const CareerExplorerView: React.FC<CareerExplorerViewProps> = ({ onPathSaved }) => {
-  const { userId, isLoggedIn } = useAuth();
+  const { userId, isLoggedIn } = useAuth(); // Auth context for user session and ID
 
-  const [careerFieldInput, setCareerFieldInput] = useState<string>('');
-  const [exploredPathData, setExploredPathData] = useState<{ name: string; report: string } | null>(null);
-  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
-  const [isLoadingReport, setIsLoadingReport] = useState<boolean>(false);
-  const [reportError, setReportError] = useState<string | null>(null);
+  // State variables
+  const [careerFieldInput, setCareerFieldInput] = useState<string>(''); // Input for career field name
+  const [exploredPathData, setExploredPathData] = useState<{ name: string; report: string } | null>(null); // AI report data
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false); // Controls visibility of the report modal
+  const [isLoadingReport, setIsLoadingReport] = useState<boolean>(false); // True when AI report is being fetched
+  const [reportError, setReportError] = useState<string | null>(null); // Error messages related to report generation
 
+  /**
+   * Handles the action to explore a career field.
+   * Validates input, calls the `/api/explore-path` endpoint, and displays the result in a modal.
+   */
   const handleExploreCareerField = async () => {
     if (!isLoggedIn) {
       setReportError('Please log in to explore career fields.');
@@ -46,11 +76,18 @@ const CareerExplorerView: React.FC<CareerExplorerViewProps> = ({ onPathSaved }) 
     }
   };
 
+  /**
+   * Handles saving the currently explored career path data.
+   * Validates that there is data to save and the user is logged in.
+   * Calls the `/api/save-path` endpoint.
+   * Invokes `onPathSaved` callback on success to notify the parent component.
+   */
   const handleSaveExploredPath = async () => {
-    if (!exploredPathData || !userId || !isLoggedIn) {
-      alert('No report data to save or user not logged in.');
+    if (!exploredPathData || !isLoggedIn) {
+      setReportError('No report data to save or user not logged in.'); // Use existing error state
       return;
     }
+    setReportError(null); // Clear previous errors before attempting to save
     // user_id is now taken from JWT on the backend, no need to send it in payload.
     const pathPayload = {
       path_name: exploredPathData.name,
@@ -67,10 +104,12 @@ const CareerExplorerView: React.FC<CareerExplorerViewProps> = ({ onPathSaved }) 
       setExploredPathData(null);
       setCareerFieldInput(''); // Clear input after successful save
       onPathSaved(); // Call the callback to refresh parent's list
+      // Optionally, provide a success message, perhaps using a toast/notification system if available
+      // For now, the alert suffices for success, but errors are handled by setReportError.
     } catch (err) {
-      const error = err as AxiosError;
+      const error = err as AxiosError<{ error?: string }>; // Ensure type for error.response.data
       console.error('Error saving explored path:', error);
-      alert(`Failed to save explored path: ${error.response?.data?.error || error.message}`);
+      setReportError(error.response?.data?.error || `Failed to save explored path: ${error.message}`);
     }
   };
 

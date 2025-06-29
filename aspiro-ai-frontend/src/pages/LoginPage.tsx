@@ -1,24 +1,49 @@
 // src/pages/LoginPage.tsx
-import React, { useState } from 'react';
-import apiClient from '../api'; // Import the configured axios instance
+/**
+ * LoginPage component for user authentication.
+ *
+ * Features:
+ * - Email and password input fields.
+ * - Calls the backend '/api/login' endpoint using the configured `apiClient`.
+ * - Uses `AuthContext` to update global authentication state upon successful login.
+ * - Displays error messages from the API or for general failures.
+ * - Provides a navigation link to the registration page.
+ */
+import React, { useState, FormEvent } from 'react';
+import apiClient from '../api';
 import { useAuth } from '../context/AuthContext';
 import { AxiosError } from 'axios';
 
-// Props for navigation, to be passed from App.tsx or a router later
+/**
+ * Props for the LoginPage component.
+ * @interface LoginPageProps
+ * @property {() => void} onNavigateToRegister - Callback function to navigate to the registration page.
+ */
 interface LoginPageProps {
   onNavigateToRegister: () => void;
-  // onLoginSuccess is implicitly handled by AuthContext updating state, App.tsx will react
 }
 
+/**
+ * LoginPage functional component.
+ * @param {LoginPageProps} props - The props for the component.
+ */
 const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const { login } = useAuth(); // Get login function from AuthContext
+  const { login } = useAuth(); // Access the login function from AuthContext
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /**
+   * Handles the form submission for user login.
+   * Prevents default form submission, clears previous errors,
+   * and makes an API call to the login endpoint.
+   * On success, calls the `login` function from `AuthContext` with user ID and token.
+   * On failure, sets an error message to be displayed.
+   * @param {FormEvent} e - The form submission event.
+   */
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setError(null); // Clear previous errors
 
     try {
       const response = await apiClient.post('/login', { // Use apiClient and relative path

@@ -1,23 +1,42 @@
 // src/components/dashboard/AiAssistantView.tsx
-// Placeholder for AI Assistant View content
+/**
+ * AiAssistantView component (Placeholder).
+ *
+ * This component is intended to provide an interface for users to interact
+ * with an AI assistant for career advice, questions, etc.
+ *
+ * Currently, it displays a static chat-like UI and is not functional.
+ * Future development would involve implementing:
+ * - State management for chat messages.
+ * - Input handling for user queries.
+ * - API calls to a backend endpoint for the AI assistant.
+ * - Display of AI responses.
+ */
 import React from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 
-
+/**
+ * AiAssistantView functional component.
+ * Renders a placeholder UI for an AI chat assistant.
+ */
 const AiAssistantView: React.FC = () => {
-  // Basic placeholder structure from DashboardPage
+  // TODO: Implement state for messages, input, loading, errors.
+  // TODO: Implement API call logic to an AI assistant backend endpoint.
+
   return (
     <div className="flex flex-col h-[calc(100vh-20rem)] bg-surface rounded-xl shadow-2xl animate-fadeIn">
+      {/* Chat messages area */}
       <div className="flex-grow p-6 space-y-4 overflow-y-auto">
-        {/* Example Messages */}
+        {/* Example AI Message (Placeholder) */}
         <div className="flex justify-start">
           <div className="bg-background/50 text-text-DEFAULT p-3 rounded-lg max-w-xs lg:max-w-md shadow">
-            Hello! How can I assist with your career today? (AI Assistant View)
+            Hello! I am your AI Career Assistant. How can I help you today? (This is a placeholder UI)
           </div>
         </div>
+        {/* Example User Message (Placeholder) */}
         <div className="flex justify-end">
           <div className="bg-primary text-white p-3 rounded-lg max-w-xs lg:max-w-md shadow">
-            I'm looking for advice on switching to a product management role.
+            I'd like to know more about transitioning into data science.
           </div>
         </div>
       </div>

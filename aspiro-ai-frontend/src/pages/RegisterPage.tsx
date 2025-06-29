@@ -1,24 +1,49 @@
 // src/pages/RegisterPage.tsx
-import React, { useState } from 'react';
-import apiClient from '../api'; // Import the configured axios instance
-import { AxiosError } from 'axios'; // Import AxiosError for better type checking
+/**
+ * RegisterPage component for new user registration.
+ *
+ * Features:
+ * - Email, password, and confirm password input fields.
+ * - Client-side validation for password match and minimum length.
+ * - Calls the backend '/api/register' endpoint using `apiClient`.
+ * - Displays success or error messages based on API response.
+ * - Navigates to the login page upon successful registration after a short delay.
+ */
+import React, { useState, FormEvent } from 'react';
+import apiClient from '../api';
+import { AxiosError } from 'axios';
 
-// Props for navigation, to be passed from App.tsx or a router later
+/**
+ * Props for the RegisterPage component.
+ * @interface RegisterPageProps
+ * @property {() => void} onNavigateToLogin - Callback function to navigate to the login page.
+ */
 interface RegisterPageProps {
   onNavigateToLogin: () => void;
 }
 
+/**
+ * RegisterPage functional component.
+ * @param {RegisterPageProps} props - The props for the component.
+ */
 const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [email, setEmail] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /**
+   * Handles the form submission for user registration.
+   * Performs client-side validation, then makes an API call to '/api/register'.
+   * Updates UI with success or error messages.
+   * Redirects to login page on successful registration.
+   * @param {FormEvent} e - The form submission event.
+   */
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccessMessage(null);
+    setError(null); // Clear previous errors
+    setSuccessMessage(null); // Clear previous success messages
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");

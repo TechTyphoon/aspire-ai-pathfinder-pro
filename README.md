@@ -135,12 +135,14 @@ ASPIRO AI is a full-stack web application designed to assist users in their care
     ```
 
 3.  **Environment Variables (Frontend):**
-    The frontend `src/api.ts` is configured to connect to `http://localhost:5000/api`. If your backend runs on a different URL, you'll need to update this base URL in `aspiro-ai-frontend/src/api.ts`.
-    For Vite projects, environment variables are typically managed via `.env` files in the frontend directory (e.g., `aspiro-ai-frontend/.env`). Example:
-    ```env
-    VITE_API_BASE_URL=http://localhost:5000/api
-    ```
-    And then use `import.meta.env.VITE_API_BASE_URL` in `api.ts`. (This change has not been implemented in the current code but is standard practice).
+    The frontend API base URL is configured in `aspiro-ai-frontend/src/api.ts` using an environment variable `VITE_API_BASE_URL`.
+    *   Create a file named `.env.development` (or `.env.local`, `.env`) in the `aspiro-ai-frontend/` directory.
+    *   Add the following line, adjusting the URL if your backend runs elsewhere:
+        ```env
+        VITE_API_BASE_URL=http://localhost:5000/api
+        ```
+    *   For production builds, you can set this environment variable during your build process or in a `.env.production` file.
+    *   The `api.ts` file uses `import.meta.env.VITE_API_BASE_URL` and defaults to `http://localhost:5000/api` if the variable is not set.
 
 4.  **Run the Frontend Development Server:**
     Using npm:
@@ -161,6 +163,61 @@ ASPIRO AI is a full-stack web application designed to assist users in their care
     ```bash
     python -m pytest tests/backend/
     ```
+
+---
+
+## System Overview & Methodology Notes (for Research Context)
+
+This section provides a high-level overview of the system's architecture and core AI interactions, which may be relevant when describing the methodology in a research context.
+
+### Core User Flows & AI Interaction:
+
+1.  **User Authentication:**
+    *   Frontend (`LoginPage.tsx`, `RegisterPage.tsx`) handles user input.
+    *   Backend (`auth_routes.py`) validates credentials, manages user data (`User` model), and issues JWTs upon successful login.
+    *   JWTs are stored in frontend's `localStorage` (`AuthContext.tsx`) and automatically sent with subsequent API calls via an Axios interceptor (`api.ts`).
+
+2.  **Resume Analysis (`ResumeAnalyzerView.tsx` -> `ai_routes.py`):**
+    *   User uploads a resume file (PDF, DOCX, TXT) and specifies a target role.
+    *   Frontend sends this as `multipart/form-data` to the `/api/analyze-resume` endpoint.
+    *   Backend (`utils.extract_text_from_file`) extracts text content.
+    *   A structured prompt (see `prompts.get_resume_feedback_prompt` in `server/prompts.py`) is constructed, combining the resume text and target role.
+    *   This prompt is sent to the Google Gemini Pro model via `utils.generate_ai_content`.
+    *   The AI's textual feedback is returned to the frontend and displayed.
+
+3.  **Role Suggestion (`ResumeAnalyzerView.tsx` -> `ai_routes.py`):**
+    *   User uploads a resume file.
+    *   Frontend sends to `/api/suggest-roles`.
+    *   Backend extracts text.
+    *   A prompt (see `prompts.get_role_suggestion_prompt`) asks the AI to suggest roles based on the resume.
+    *   AI's suggestions are returned and displayed.
+
+4.  **Career Field Exploration (`CareerExplorerView.tsx` -> `ai_routes.py`):**
+    *   User inputs a career field name.
+    *   Frontend sends this as JSON to `/api/explore-path`.
+    *   A prompt (see `prompts.get_career_exploration_prompt`) asks the AI to generate a detailed report on that field.
+    *   AI's report is returned and displayed in a modal.
+
+5.  **Saving and Managing Career Paths (`CareerExplorerView.tsx`, `SavedPathsView.tsx` -> `path_routes.py`):**
+    *   Users can save explored career reports or other path-related data.
+    *   Frontend sends path name and details (JSON) to `/api/save-path`.
+    *   Backend (`path_routes.py`) stores this in the `SavedPath` model, linked to the authenticated user.
+    *   Users can view their saved paths (`/api/user/paths`) and delete them (`/api/delete-path/:id`).
+
+### AI Prompting Strategy:
+
+*   The core of the AI interaction relies on carefully crafted prompts defined in `server/prompts.py`.
+*   These prompts instruct the Gemini Pro model to act as a specific persona (e.g., "expert career advisor," "career counselor") and to structure its output in a particular way (e.g., specific sections for resume feedback or career reports).
+*   The quality and relevance of the AI's output are highly dependent on this prompt engineering. This would be a key area to detail and evaluate in a research paper.
+
+### Technology Choices (Methodology Relevance):
+
+*   **Flask (Python Backend):** Chosen for its simplicity, flexibility, and rapid development capabilities for building RESTful APIs. Python's strong ecosystem for AI/ML was also a factor.
+*   **React with TypeScript (Frontend):** Provides a robust framework for building interactive user interfaces with type safety. Vite offers a fast development experience.
+*   **Google Gemini Pro:** A powerful general-purpose large language model used as the core AI engine. The methodology would focus on *how* this pre-trained model is leveraged through prompting rather than model training itself.
+*   **JWT for Authentication:** Standard stateless authentication mechanism suitable for decoupled frontend/backend architectures.
+
+This overview is intended as a starting point for a more detailed methodology section in a research paper. Further elaboration on prompt iteration, specific data handling, and user interface design choices would be necessary.
 
 ---
 
