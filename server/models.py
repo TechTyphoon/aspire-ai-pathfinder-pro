@@ -27,11 +27,6 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, comment="User's unique email address.")
     password_hash = db.Column(db.String(128), nullable=False, comment="Hashed password for user authentication.")
 
-    # Relationship to SavedPath: A user can have many saved paths.
-    # - backref='author': Creates a virtual 'author' attribute on SavedPath instances linking back to the User.
-    # - lazy='dynamic': The query for paths is not run until explicitly requested, returning a query object.
-    # - cascade="all, delete-orphan": Operations like delete on a User will cascade to their SavedPaths.
-    #   If a SavedPath is removed from a User's saved_paths collection, it will be deleted from the database.
     saved_paths = db.relationship(
         'SavedPath',
         backref='author',

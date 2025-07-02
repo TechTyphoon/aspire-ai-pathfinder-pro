@@ -104,11 +104,6 @@ def create_app(config_overrides=None):
     app.register_blueprint(ai_bp)   # AI-powered routes (e.g., /analyze-resume)
     app.register_blueprint(path_bp) # Career path management routes (e.g., /save-path)
 
-    # Database creation is now handled by Flask-Migrate.
-    # The old `db.create_all()` call has been removed.
-    # To create/update database schema:
-    # 1. `flask db migrate -m "description of changes"` (from project root, with FLASK_APP=server.app)
-    # 2. `flask db upgrade`
 
     # --- Root Route for Health Check ---
     @app.route('/')

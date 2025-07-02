@@ -221,4 +221,40 @@ This overview is intended as a starting point for a more detailed methodology se
 
 ---
 
-This README provides a comprehensive guide to getting the ASPIRO AI application up and running for development.
+
+## Troubleshooting & Tips
+
+### Frontend (React/Vite) Install/Build Issues
+
+- **Node.js & npm version:** Ensure you are using Node.js 18+ and npm 8+ (`node --version`, `npm --version`).
+- **Clean install:** If you encounter persistent `npm install` or build errors, try:
+  ```bash
+  rm -rf node_modules package-lock.json
+  npm cache clean --force
+  npm install
+  ```
+- **Nested lockfile issue:** If you see a nested `aspiro-ai-frontend/aspiro-ai-frontend/package-lock.json`, delete it:
+  ```bash
+  rm -f aspiro-ai-frontend/aspiro-ai-frontend/package-lock.json
+  ```
+- **Peer dependency conflicts:** Try `npm install --legacy-peer-deps` or `npm install --force` if you see peer dependency errors.
+- **Missing dependencies:** Make sure `react`, `react-dom`, `@types/react`, `@types/react-dom`, and `@heroicons/react` are installed.
+
+### Contributing & Pushing to GitHub
+
+1. **Stage your changes:**
+   ```bash
+   git add .
+   ```
+2. **Commit your changes:**
+   ```bash
+   git commit -m "Refactor, cleanup, and update documentation"
+   ```
+3. **Push to GitHub:**
+   ```bash
+   git push origin main
+   ```
+
+---
+
+This README provides a comprehensive guide to getting the ASPIRO AI application up and running for development, plus troubleshooting and contribution tips.

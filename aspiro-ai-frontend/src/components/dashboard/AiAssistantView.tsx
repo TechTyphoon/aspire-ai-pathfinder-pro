@@ -1,17 +1,5 @@
 // src/components/dashboard/AiAssistantView.tsx
-/**
- * AiAssistantView component (Placeholder).
- *
- * This component is intended to provide an interface for users to interact
- * with an AI assistant for career advice, questions, etc.
- *
- * Currently, it displays a static chat-like UI and is not functional.
- * Future development would involve implementing:
- * - State management for chat messages.
- * - Input handling for user queries.
- * - API calls to a backend endpoint for the AI assistant.
- * - Display of AI responses.
- */
+// AiAssistantView: Placeholder for future AI chat assistant UI. Not yet functional.
 import React from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 
@@ -20,8 +8,7 @@ import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
  * Renders a placeholder UI for an AI chat assistant.
  */
 const AiAssistantView: React.FC = () => {
-  // TODO: Implement state for messages, input, loading, errors.
-  // TODO: Implement API call logic to an AI assistant backend endpoint.
+  // Future: Add state, input, and API logic for AI assistant chat.
 
   return (
     <div className="flex flex-col h-[calc(100vh-20rem)] bg-surface rounded-xl shadow-2xl animate-fadeIn">
