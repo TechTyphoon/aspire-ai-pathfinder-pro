@@ -8,12 +8,9 @@ import { supabase } from '@/integrations/supabase/client'
 interface SavedPath {
   id: number
   path_name: string
-  path_details_json: {
-    field?: string
-    analysis?: string
-    saved_at?: string
-  }
+  path_details_json: any
   created_at: string
+  user_id: string | null
 }
 
 export const SavedPaths = () => {

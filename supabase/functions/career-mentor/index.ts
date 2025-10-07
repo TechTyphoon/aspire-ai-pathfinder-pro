@@ -18,16 +18,14 @@ serve(async (req) => {
   try {
     const { question }: RequestBody = await req.json()
 
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
-    if (!geminiApiKey) {
-      throw new Error('Gemini API key not configured')
+    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
+    if (!lovableApiKey) {
+      throw new Error('LOVABLE_API_KEY is not configured')
     }
 
     console.log('Processing question:', question)
 
-    const prompt = `Act as an expert AI Career Mentor and a seasoned career coach from the tech industry with deep knowledge of both hardware and software roles. A user is asking about a career path. Your task is to provide a comprehensive, structured, and encouraging roadmap.
-
-**User's Question:** "${question}"
+    const systemPrompt = `Act as an expert AI Career Mentor and a seasoned career coach from the tech industry with deep knowledge of both hardware and software roles. Your task is to provide a comprehensive, structured, and encouraging roadmap.
 
 **Your Response Structure:**
 1. ✅ 1. Understand the Role: A clear summary of what the job entails.
@@ -40,58 +38,41 @@ serve(async (req) => {
 
 Provide a direct, helpful, and expert answer based on this structure.`
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${geminiApiKey}`, {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 1,
-          topP: 1,
-          maxOutputTokens: 2048,
-        },
-        safetySettings: [
+        model: 'google/gemini-2.5-flash',
+        messages: [
           {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            role: 'system',
+            content: systemPrompt
           },
           {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            role: 'user',
+            content: question
           }
-        ]
+        ],
       })
     })
 
-    const geminiResponse = await response.json()
-    console.log('Gemini API response:', JSON.stringify(geminiResponse, null, 2))
+    const aiResponse = await response.json()
+    console.log('Lovable AI response:', JSON.stringify(aiResponse, null, 2))
     
     if (!response.ok) {
-      console.error('Gemini API error:', geminiResponse)
-      throw new Error(`Gemini API error: ${geminiResponse.error?.message || 'Unknown error'}`)
+      console.error('Lovable AI error:', aiResponse)
+      throw new Error(`Lovable AI error: ${aiResponse.error?.message || 'Unknown error'}`)
     }
 
-    if (!geminiResponse.candidates?.[0]?.content?.parts?.[0]?.text) {
-      console.error('Invalid Gemini response structure:', geminiResponse)
-      throw new Error('Invalid response from Gemini API - no text content found')
+    if (!aiResponse.choices?.[0]?.message?.content) {
+      console.error('Invalid AI response structure:', aiResponse)
+      throw new Error('Invalid response from AI - no text content found')
     }
 
-    const analysis = geminiResponse.candidates[0].content.parts[0].text
+    const analysis = aiResponse.choices[0].message.content
 
     return new Response(
       JSON.stringify({ response: analysis }),
