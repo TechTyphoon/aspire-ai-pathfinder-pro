@@ -1,8 +1,7 @@
-
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Send, Bot, User } from 'lucide-react'
+import { Send, Bot, User, Sparkles } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { supabase } from '@/integrations/supabase/client'
 
@@ -51,7 +50,6 @@ export const AIAssistantChat = () => {
     setIsTyping(true)
 
     try {
-      // Call the career-mentor edge function
       const { data, error } = await supabase.functions.invoke('career-mentor', {
         body: {
           question: currentInput
@@ -111,53 +109,60 @@ export const AIAssistantChat = () => {
   ]
 
   return (
-    <div className="flex flex-col h-[600px] bg-white border border-gray-200 rounded-lg shadow-sm">
+    <div className="flex flex-col h-[600px] rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center space-x-3 p-4 border-b border-gray-200">
-        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-          <Bot className="w-6 h-6 text-blue-600" />
+      <div className="flex items-center gap-4 p-5 border-b border-border/50 bg-card/50">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+            <Bot className="w-6 h-6 text-primary-foreground" />
+          </div>
+          <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-400 rounded-full border-2 border-card" />
         </div>
         <div>
-          <h3 className="font-semibold text-gray-900">AI Career Assistant</h3>
-          <p className="text-sm text-gray-600">Online • Ready to help</p>
+          <h3 className="font-semibold text-foreground">AI Career Assistant</h3>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-emerald-400">Online</span>
+            <span className="text-muted-foreground">•</span>
+            <span className="text-sm text-muted-foreground">Ready to help</span>
+          </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gradient-to-b from-card/30 to-transparent">
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'} animate-fade-in`}
           >
-            <div className={`flex items-start space-x-2 max-w-[80%] ${
-              message.sender === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+            <div className={`flex items-start gap-3 max-w-[85%] ${
+              message.sender === 'user' ? 'flex-row-reverse' : ''
             }`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
                 message.sender === 'user' 
-                  ? 'bg-blue-600' 
-                  : 'bg-gray-200'
+                  ? 'bg-gradient-to-br from-primary to-secondary' 
+                  : 'bg-muted'
               }`}>
                 {message.sender === 'user' ? (
-                  <User className="w-4 h-4 text-white" />
+                  <User className="w-4 h-4 text-primary-foreground" />
                 ) : (
-                  <Bot className="w-4 h-4 text-gray-600" />
+                  <Bot className="w-4 h-4 text-muted-foreground" />
                 )}
               </div>
-              <div className={`rounded-lg px-4 py-2 ${
+              <div className={`${
                 message.sender === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-900'
+                  ? 'message-bubble-user'
+                  : 'message-bubble-ai'
               }`}>
-                <div className={`text-sm ${message.sender === 'ai' ? 'prose prose-sm max-w-none' : ''}`}>
+                <div className="text-sm">
                   {message.sender === 'ai' ? (
                     <pre className="whitespace-pre-wrap font-sans">{message.text}</pre>
                   ) : (
                     <p>{message.text}</p>
                   )}
                 </div>
-                <p className={`text-xs mt-1 ${
-                  message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                <p className={`text-xs mt-2 ${
+                  message.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
                 }`}>
                   {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -167,16 +172,16 @@ export const AIAssistantChat = () => {
         ))}
         
         {isTyping && (
-          <div className="flex justify-start">
-            <div className="flex items-start space-x-2 max-w-[80%]">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                <Bot className="w-4 h-4 text-gray-600" />
+          <div className="flex justify-start animate-fade-in">
+            <div className="flex items-start gap-3 max-w-[85%]">
+              <div className="w-9 h-9 bg-muted rounded-xl flex items-center justify-center">
+                <Bot className="w-4 h-4 text-muted-foreground" />
               </div>
-              <div className="bg-gray-100 rounded-lg px-4 py-2">
-                <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="message-bubble-ai">
+                <div className="flex gap-1.5">
+                  <div className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" />
+                  <div className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                  <div className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
                 </div>
               </div>
             </div>
@@ -186,36 +191,36 @@ export const AIAssistantChat = () => {
       </div>
 
       {/* Quick Questions */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="px-5 py-4 border-t border-border/50 bg-card/30">
         <div className="flex flex-wrap gap-2 mb-4">
           {quickQuestions.map((question) => (
-            <Button
+            <button
               key={question}
-              variant="outline"
-              size="sm"
               onClick={() => handleQuickQuestion(question)}
               disabled={isTyping}
-              className="text-xs hover:bg-blue-50 hover:border-blue-300"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-muted/50 text-muted-foreground border border-border/50 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
               {question}
-            </Button>
+            </button>
           ))}
         </div>
 
         {/* Input */}
-        <div className="flex space-x-2">
-          <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask me anything about your career..."
-            className="flex-1"
-            disabled={isTyping}
-          />
+        <div className="flex gap-3">
+          <div className="flex-1 relative">
+            <Input
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask me anything about your career..."
+              className="input-modern pr-12"
+              disabled={isTyping}
+            />
+          </div>
           <Button 
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isTyping}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="btn-primary px-4"
           >
             <Send className="w-4 h-4" />
           </Button>
