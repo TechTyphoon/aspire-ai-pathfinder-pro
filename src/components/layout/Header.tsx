@@ -1,4 +1,5 @@
 import { Sparkles } from 'lucide-react'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export const Header = () => {
   return (
@@ -19,7 +20,8 @@ export const Header = () => {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
             <div className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-muted/50 border border-border/50">
               <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm text-muted-foreground">AI Ready</span>
