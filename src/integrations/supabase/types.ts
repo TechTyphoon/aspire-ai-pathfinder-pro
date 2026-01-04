@@ -20,21 +20,21 @@ export type Database = {
           id: number
           path_details_json: Json
           path_name: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
           id?: number
           path_details_json?: Json
           path_name: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
           id?: number
           path_details_json?: Json
           path_name?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }

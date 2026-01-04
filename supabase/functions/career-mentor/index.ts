@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,18 +13,63 @@ interface RequestBody {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
+    // Verify JWT authentication
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.error('Missing Authorization header')
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    // Create Supabase client with user's JWT
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader }
+        }
+      }
+    )
+
+    // Verify the user is authenticated
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
+      console.error('Authentication failed:', userError?.message)
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    console.log('Authenticated user:', user.id)
+
     const { question }: RequestBody = await req.json()
+
+    // Validate input
+    if (!question || typeof question !== 'string' || question.length > 2000) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid question. Must be a string under 2000 characters.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
     if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured')
+      console.error('LOVABLE_API_KEY not configured')
+      return new Response(
+        JSON.stringify({ error: 'AI service not configured' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
-    console.log('Processing question:', question)
+    console.log('Processing question for user:', user.id)
 
     const systemPrompt = `Act as an expert AI Career Mentor and a seasoned career coach from the tech industry with deep knowledge of both hardware and software roles. Your task is to provide a comprehensive, structured, and encouraging roadmap.
 
@@ -60,16 +106,22 @@ Provide a direct, helpful, and expert answer based on this structure.`
     })
 
     const aiResponse = await response.json()
-    console.log('Lovable AI response:', JSON.stringify(aiResponse, null, 2))
+    console.log('AI response received')
     
     if (!response.ok) {
-      console.error('Lovable AI error:', aiResponse)
-      throw new Error(`Lovable AI error: ${aiResponse.error?.message || 'Unknown error'}`)
+      console.error('AI error:', aiResponse)
+      return new Response(
+        JSON.stringify({ error: 'AI service error' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
     if (!aiResponse.choices?.[0]?.message?.content) {
       console.error('Invalid AI response structure:', aiResponse)
-      throw new Error('Invalid response from AI - no text content found')
+      return new Response(
+        JSON.stringify({ error: 'Invalid AI response' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
     const analysis = aiResponse.choices[0].message.content
@@ -84,13 +136,10 @@ Provide a direct, helpful, and expert answer based on this structure.`
   } catch (error) {
     console.error('Career mentor error:', error)
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: 'Please check the function logs for more information'
-      }),
+      JSON.stringify({ error: 'An error occurred processing your request' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500,
       },
     )
   }

@@ -15,43 +15,104 @@ interface RequestBody {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
+    // Verify JWT authentication
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.error('Missing Authorization header')
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    // Create Supabase client with user's JWT
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader }
+        }
+      }
     )
+
+    // Verify the user is authenticated
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
+      console.error('Authentication failed:', userError?.message)
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      )
+    }
+
+    console.log('Authenticated user:', user.id)
 
     const { filePath, analysisType, targetRole }: RequestBody = await req.json()
 
+    // Validate inputs
+    if (!filePath || typeof filePath !== 'string') {
+      return new Response(
+        JSON.stringify({ error: 'Invalid filePath' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    if (!['target-role', 'best-fit'].includes(analysisType)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid analysisType' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    // Verify the file belongs to the authenticated user
+    // File path should be: {user_id}/{filename}
+    const pathParts = filePath.split('/')
+    if (pathParts.length < 2 || pathParts[0] !== user.id) {
+      console.error('Unauthorized file access attempt:', { filePath, userId: user.id })
+      return new Response(
+        JSON.stringify({ error: 'Access denied to this file' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      )
+    }
+
     console.log('Analyzing resume:', { filePath, analysisType, targetRole })
 
-    // Download file from storage
+    // Download file from storage (user's JWT will be verified by storage RLS)
     const { data: fileData, error: downloadError } = await supabaseClient.storage
       .from('resumes')
       .download(filePath)
 
     if (downloadError) {
       console.error('Download error:', downloadError)
-      throw new Error(`Failed to download file: ${downloadError.message}`)
+      return new Response(
+        JSON.stringify({ error: 'Failed to download file. Please ensure the file exists.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
     }
 
-    // Extract text from file (simplified - in production, use proper PDF/DOCX parsers)
+    // Extract text from file
     const fileBuffer = await fileData.arrayBuffer()
     const fileContent = new TextDecoder().decode(fileBuffer)
-    
     const resumeText = fileContent
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
     if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured')
+      console.error('LOVABLE_API_KEY not configured')
+      return new Response(
+        JSON.stringify({ error: 'AI service not configured' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
     let prompt = ''
     if (analysisType === 'target-role') {
-      prompt = `Act as an expert technical recruiter and ATS software. Your task is to analyze the following resume text for a candidate who is targeting a '${targetRole}' role. First, identify the candidate's name from the resume text.
+      const sanitizedRole = (targetRole || '').slice(0, 100).replace(/[<>]/g, '')
+      prompt = `Act as an expert technical recruiter and ATS software. Your task is to analyze the following resume text for a candidate who is targeting a '${sanitizedRole}' role. First, identify the candidate's name from the resume text.
 
 **Analysis Steps:**
 1. **ATS Score:** Provide an "ATS Score" on a scale of 0-100 based on a detailed analysis of keyword relevance for the target role, quantifiable achievements, formatting, and clarity. The score must be a number.
@@ -90,16 +151,22 @@ ${resumeText}`
     })
 
     const aiResponse = await response.json()
-    console.log('Lovable AI response:', JSON.stringify(aiResponse, null, 2))
+    console.log('AI response received')
     
     if (!response.ok) {
-      console.error('Lovable AI error:', aiResponse)
-      throw new Error(`Lovable AI error: ${aiResponse.error?.message || 'Unknown error'}`)
+      console.error('AI error:', aiResponse)
+      return new Response(
+        JSON.stringify({ error: 'AI service error' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
     if (!aiResponse.choices?.[0]?.message?.content) {
       console.error('Invalid AI response structure:', aiResponse)
-      throw new Error('Invalid response from AI - no text content found')
+      return new Response(
+        JSON.stringify({ error: 'Invalid AI response' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
     }
 
     const analysis = aiResponse.choices[0].message.content
@@ -126,13 +193,10 @@ ${resumeText}`
   } catch (error) {
     console.error('Resume analysis error:', error)
     return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: 'Please check the function logs for more information'
-      }),
+      JSON.stringify({ error: 'An error occurred processing your request' }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: 500,
       },
     )
   }
