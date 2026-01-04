@@ -1,22 +1,24 @@
-
 import { Dashboard } from '@/components/dashboard/Dashboard'
+import { Auth } from '@/pages/Auth'
+import { useAuth } from '@/contexts/AuthContext'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 
 const Index = () => {
-  // Commented out authentication logic - no login required for now
-  // const { user } = useAuth()
+  const { user, loading } = useAuth()
 
-  // if (!user) {
-  //   return <Auth />
-  // }
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
 
-  // return (
-  //   <ProtectedRoute>
-  //     <Dashboard />
-  //   </ProtectedRoute>
-  // )
+  if (!user) {
+    return <Auth />
+  }
 
-  // Direct access to dashboard without authentication
   return <Dashboard />
-};
+}
 
-export default Index;
+export default Index
