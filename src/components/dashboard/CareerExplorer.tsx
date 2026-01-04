@@ -63,10 +63,22 @@ export const CareerExplorer = () => {
     }
 
     try {
+      // Get current authenticated user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        toast({
+          title: "Authentication required",
+          description: "Please log in to save career paths",
+          variant: "destructive"
+        })
+        return
+      }
+
       const { error } = await supabase
         .from('saved_paths')
         .insert({
-          user_id: null,
+          user_id: user.id,
           path_name: `${careerField} Career Path`,
           path_details_json: {
             field: careerField,
@@ -82,7 +94,6 @@ export const CareerExplorer = () => {
         description: `${careerField} career path saved to your collection`,
       })
     } catch (error) {
-      console.error('Save path error:', error)
       toast({
         title: "Save failed",
         description: "Unable to save career path. Please try again.",
