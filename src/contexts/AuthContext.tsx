@@ -28,12 +28,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    console.log('Setting up auth state listener...')
-    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email)
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
@@ -42,20 +39,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session:', session?.user?.email)
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
     return () => {
-      console.log('Cleaning up auth subscription')
       subscription.unsubscribe()
     }
   }, [])
 
   const signUp = async (email: string, password: string) => {
-    console.log('Attempting to sign up:', email)
     setLoading(true)
     
     try {
@@ -69,19 +63,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       })
       
-      console.log('Sign up response:', { data, error })
-      
       setLoading(false)
       return { error }
     } catch (err) {
-      console.error('Sign up exception:', err)
       setLoading(false)
       return { error: err }
     }
   }
 
   const signIn = async (email: string, password: string) => {
-    console.log('Attempting to sign in:', email)
     setLoading(true)
     
     try {
@@ -90,25 +80,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
       })
       
-      console.log('Sign in response:', { data, error })
-      
       setLoading(false)
       return { error }
     } catch (err) {
-      console.error('Sign in exception:', err)
       setLoading(false)
       return { error: err }
     }
   }
 
   const signOut = async () => {
-    console.log('Signing out...')
     setLoading(true)
     try {
       await supabase.auth.signOut()
-      console.log('Sign out successful')
     } catch (err) {
-      console.error('Sign out error:', err)
+      // Sign out error handled silently
     } finally {
       setLoading(false)
     }

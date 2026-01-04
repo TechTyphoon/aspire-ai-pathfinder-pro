@@ -76,8 +76,6 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
       const demoEmail = 'demo@aspiroai.com'
       const demoPassword = 'demo123456'
       
-      console.log('Attempting demo login...')
-      
       // Try to sign in first
       const { error: signInError } = await signIn(demoEmail, demoPassword)
       
@@ -90,10 +88,8 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
         return
       }
       
-      console.log('Demo sign in failed, attempting to create demo account:', signInError)
-      
       // If sign in failed, try to create the demo account
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: demoEmail,
         password: demoPassword,
         options: {
@@ -104,8 +100,6 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
       })
       
       if (signUpError) {
-        console.error('Demo signup error:', signUpError)
-        
         // If user already exists but couldn't sign in, show specific message
         if (signUpError.message?.includes('User already registered')) {
           toast({
@@ -122,7 +116,6 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
         }
       } else {
         // Signup successful - user should be automatically signed in
-        console.log('Demo account created:', signUpData)
         toast({
           title: 'Demo Account Created',
           description: 'Welcome to ASPIRO AI! Demo account created and you are now signed in.',
@@ -130,7 +123,6 @@ export const LoginForm = ({ onSwitchToSignUp }: LoginFormProps) => {
       }
       
     } catch (error) {
-      console.error('Demo login exception:', error)
       toast({
         title: 'Error',
         description: 'An unexpected error occurred during demo login',
