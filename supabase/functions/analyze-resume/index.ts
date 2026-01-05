@@ -1,6 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import * as pdfParse from 'npm:pdf-parse@1.1.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +11,58 @@ interface RequestBody {
   filePath: string
   analysisType: 'target-role' | 'best-fit'
   targetRole?: string
+}
+
+// Helper function to extract text from different file types
+async function extractTextFromFile(fileData: Blob, fileName: string): Promise<string> {
+  const fileBuffer = await fileData.arrayBuffer()
+  const extension = fileName.split('.').pop()?.toLowerCase()
+
+  if (extension === 'pdf') {
+    try {
+      // Parse PDF using pdf-parse
+      const pdfData = await pdfParse.default(Buffer.from(fileBuffer))
+      console.log('PDF parsed successfully, text length:', pdfData.text.length)
+      return pdfData.text
+    } catch (pdfError) {
+      console.error('PDF parsing error:', pdfError)
+      throw new Error('Failed to parse PDF file. Please ensure it contains readable text.')
+    }
+  } else if (extension === 'txt' || extension === 'md') {
+    // Plain text files
+    return new TextDecoder().decode(fileBuffer)
+  } else if (extension === 'docx') {
+    // For DOCX, we'll extract basic text (simplified approach)
+    // DOCX is a ZIP archive containing XML files
+    try {
+      const JSZip = (await import('npm:jszip@3.10.1')).default
+      const zip = await JSZip.loadAsync(fileBuffer)
+      const documentXml = await zip.file('word/document.xml')?.async('string')
+      
+      if (!documentXml) {
+        throw new Error('Invalid DOCX file structure')
+      }
+      
+      // Extract text from XML by removing tags
+      const text = documentXml
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      
+      console.log('DOCX parsed successfully, text length:', text.length)
+      return text
+    } catch (docxError) {
+      console.error('DOCX parsing error:', docxError)
+      throw new Error('Failed to parse DOCX file. Please try PDF format.')
+    }
+  } else {
+    // Fallback: try to read as text
+    const text = new TextDecoder().decode(fileBuffer)
+    if (text.includes('%PDF') || text.charCodeAt(0) > 127) {
+      throw new Error('Unsupported file format. Please upload a PDF, DOCX, or TXT file.')
+    }
+    return text
+  }
 }
 
 serve(async (req) => {
@@ -80,7 +132,8 @@ serve(async (req) => {
       )
     }
 
-    console.log('Analyzing resume:', { filePath, analysisType, targetRole })
+    const fileName = pathParts[pathParts.length - 1]
+    console.log('Analyzing resume:', { filePath, fileName, analysisType, targetRole })
 
     // Download file from storage (user's JWT will be verified by storage RLS)
     const { data: fileData, error: downloadError } = await supabaseClient.storage
@@ -95,10 +148,27 @@ serve(async (req) => {
       )
     }
 
-    // Extract text from file
-    const fileBuffer = await fileData.arrayBuffer()
-    const fileContent = new TextDecoder().decode(fileBuffer)
-    const resumeText = fileContent
+    // Extract text from file based on file type
+    let resumeText: string
+    try {
+      resumeText = await extractTextFromFile(fileData, fileName)
+    } catch (extractError) {
+      console.error('Text extraction error:', extractError)
+      return new Response(
+        JSON.stringify({ error: extractError instanceof Error ? extractError.message : 'Failed to extract text from file' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    if (!resumeText || resumeText.trim().length < 50) {
+      console.error('Extracted text too short:', resumeText?.length)
+      return new Response(
+        JSON.stringify({ error: 'Could not extract sufficient text from the resume. Please ensure your file contains readable text.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      )
+    }
+
+    console.log('Resume text extracted, length:', resumeText.length)
 
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
     if (!lovableApiKey) {
