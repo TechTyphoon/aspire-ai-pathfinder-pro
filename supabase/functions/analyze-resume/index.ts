@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import * as pdfParse from 'npm:pdf-parse@1.1.1'
+import { Buffer } from "node:buffer"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,7 +15,7 @@ interface RequestBody {
 }
 
 // Helper function to extract text from different file types
-async function extractTextFromFile(fileData: Blob, fileName: string): Promise<string> {
+export async function extractTextFromFile(fileData: Blob, fileName: string): Promise<string> {
   const fileBuffer = await fileData.arrayBuffer()
   const extension = fileName.split('.').pop()?.toLowerCase()
 
