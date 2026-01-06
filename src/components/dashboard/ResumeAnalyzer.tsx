@@ -93,11 +93,12 @@ export const ResumeAnalyzer = () => {
         title: "Analysis complete",
         description: `Resume analyzed for ${targetRole} role`,
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Analysis error:', error)
+      const errorMessage = error?.message || error?.context?.body?.error || 'Unable to analyze resume. Please try again.'
       toast({
         title: "Analysis failed",
-        description: "Unable to analyze resume. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {
@@ -137,11 +138,12 @@ export const ResumeAnalyzer = () => {
         title: "Suggestions ready",
         description: "Career role suggestions generated",
       })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Suggestions error:', error)
+      const errorMessage = error?.message || error?.context?.body?.error || 'Unable to generate role suggestions. Please try again.'
       toast({
         title: "Suggestions failed",
-        description: "Unable to generate role suggestions. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       })
     } finally {

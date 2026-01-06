@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import * as pdfParse from 'npm:pdf-parse@1.1.1'
-import { Buffer } from "node:buffer"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -18,52 +16,122 @@ interface RequestBody {
 export async function extractTextFromFile(fileData: Blob, fileName: string): Promise<string> {
   const fileBuffer = await fileData.arrayBuffer()
   const extension = fileName.split('.').pop()?.toLowerCase()
+  const uint8Array = new Uint8Array(fileBuffer)
+
+  if (extension === 'txt' || extension === 'md') {
+    return new TextDecoder().decode(fileBuffer)
+  }
 
   if (extension === 'pdf') {
-    try {
-      // Parse PDF using pdf-parse
-      const pdfData = await pdfParse.default(Buffer.from(fileBuffer))
-      console.log('PDF parsed successfully, text length:', pdfData.text.length)
-      return pdfData.text
-    } catch (pdfError) {
-      console.error('PDF parsing error:', pdfError)
-      throw new Error('Failed to parse PDF file. Please ensure it contains readable text.')
+    // Simple PDF text extraction - look for text streams
+    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
+    
+    // Check if it's actually a PDF
+    if (!rawText.startsWith('%PDF')) {
+      throw new Error('Invalid PDF file format')
     }
-  } else if (extension === 'txt' || extension === 'md') {
-    // Plain text files
-    return new TextDecoder().decode(fileBuffer)
-  } else if (extension === 'docx') {
-    // For DOCX, we'll extract basic text (simplified approach)
-    // DOCX is a ZIP archive containing XML files
-    try {
-      const JSZip = (await import('npm:jszip@3.10.1')).default
-      const zip = await JSZip.loadAsync(fileBuffer)
-      const documentXml = await zip.file('word/document.xml')?.async('string')
-      
-      if (!documentXml) {
-        throw new Error('Invalid DOCX file structure')
+
+    // Extract text between stream markers and parentheses (common PDF text patterns)
+    let extractedText = ''
+    
+    // Method 1: Extract text from BT/ET blocks (text objects)
+    const textBlocks = rawText.match(/BT[\s\S]*?ET/g) || []
+    for (const block of textBlocks) {
+      // Extract text in parentheses (literal strings)
+      const parenthesesMatches = block.match(/\(([^)]*)\)/g) || []
+      for (const match of parenthesesMatches) {
+        extractedText += match.slice(1, -1) + ' '
       }
-      
-      // Extract text from XML by removing tags
-      const text = documentXml
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-      
-      console.log('DOCX parsed successfully, text length:', text.length)
-      return text
-    } catch (docxError) {
-      console.error('DOCX parsing error:', docxError)
-      throw new Error('Failed to parse DOCX file. Please try PDF format.')
+      // Extract text in angle brackets (hex strings)
+      const hexMatches = block.match(/<([0-9A-Fa-f]+)>/g) || []
+      for (const hex of hexMatches) {
+        const hexStr = hex.slice(1, -1)
+        let decoded = ''
+        for (let i = 0; i < hexStr.length; i += 2) {
+          const charCode = parseInt(hexStr.substr(i, 2), 16)
+          if (charCode >= 32 && charCode < 127) {
+            decoded += String.fromCharCode(charCode)
+          }
+        }
+        if (decoded) extractedText += decoded + ' '
+      }
     }
-  } else {
-    // Fallback: try to read as text
-    const text = new TextDecoder().decode(fileBuffer)
-    if (text.includes('%PDF') || text.charCodeAt(0) > 127) {
-      throw new Error('Unsupported file format. Please upload a PDF, DOCX, or TXT file.')
+
+    // Method 2: Also look for plain readable text sequences
+    const plainTextMatches = rawText.match(/[A-Za-z][A-Za-z0-9\s.,!?@#$%&*()-]{10,}/g) || []
+    for (const match of plainTextMatches) {
+      if (!match.includes('stream') && !match.includes('endstream') && !match.includes('obj')) {
+        extractedText += match + ' '
+      }
     }
+
+    // Clean up the text
+    extractedText = extractedText
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '')
+      .replace(/\\t/g, ' ')
+      .replace(/\\\(/g, '(')
+      .replace(/\\\)/g, ')')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    if (extractedText.length < 50) {
+      throw new Error('Could not extract readable text from PDF. The PDF may be scanned or image-based. Please try uploading a text-based PDF or a TXT file.')
+    }
+
+    console.log('PDF text extracted, length:', extractedText.length)
+    return extractedText
+  }
+
+  if (extension === 'docx') {
+    // DOCX is a ZIP archive - try to read as text and look for XML content
+    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
+    
+    // Look for document.xml content within the binary
+    const xmlStart = rawText.indexOf('<w:document')
+    const xmlEnd = rawText.lastIndexOf('</w:document>')
+    
+    if (xmlStart === -1 || xmlEnd === -1) {
+      // Fallback: extract any readable text
+      const readableText = rawText.match(/[A-Za-z][A-Za-z0-9\s.,!?@#$%&*()-]{5,}/g) || []
+      const filtered = readableText.filter(t => 
+        !t.includes('Content') && 
+        !t.includes('xml') && 
+        !t.includes('rels') &&
+        !t.includes('docProps') &&
+        t.length > 10
+      )
+      if (filtered.length > 0) {
+        return filtered.join(' ').trim()
+      }
+      throw new Error('Could not parse DOCX file. Please try uploading as PDF or TXT.')
+    }
+
+    const xmlContent = rawText.substring(xmlStart, xmlEnd + '</w:document>'.length)
+    // Strip XML tags and get text
+    const text = xmlContent
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    console.log('DOCX text extracted, length:', text.length)
     return text
   }
+
+  // Fallback: try to read as plain text
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(fileBuffer)
+  
+  // Check if it looks like binary
+  const nonPrintable = text.split('').filter(c => {
+    const code = c.charCodeAt(0)
+    return code < 32 && code !== 10 && code !== 13 && code !== 9
+  }).length
+  
+  if (nonPrintable > text.length * 0.1) {
+    throw new Error('Unsupported file format. Please upload a PDF, DOCX, or TXT file with readable text.')
+  }
+
+  return text
 }
 
 serve(async (req) => {
@@ -123,7 +191,6 @@ serve(async (req) => {
     }
 
     // Verify the file belongs to the authenticated user
-    // File path should be: {user_id}/{filename}
     const pathParts = filePath.split('/')
     if (pathParts.length < 2 || pathParts[0] !== user.id) {
       console.error('Unauthorized file access attempt:', { filePath, userId: user.id })
@@ -136,7 +203,7 @@ serve(async (req) => {
     const fileName = pathParts[pathParts.length - 1]
     console.log('Analyzing resume:', { filePath, fileName, analysisType, targetRole })
 
-    // Download file from storage (user's JWT will be verified by storage RLS)
+    // Download file from storage
     const { data: fileData, error: downloadError } = await supabaseClient.storage
       .from('resumes')
       .download(filePath)
@@ -149,14 +216,15 @@ serve(async (req) => {
       )
     }
 
-    // Extract text from file based on file type
+    // Extract text from file
     let resumeText: string
     try {
       resumeText = await extractTextFromFile(fileData, fileName)
     } catch (extractError) {
       console.error('Text extraction error:', extractError)
+      const errorMessage = extractError instanceof Error ? extractError.message : 'Failed to extract text from file'
       return new Response(
-        JSON.stringify({ error: extractError instanceof Error ? extractError.message : 'Failed to extract text from file' }),
+        JSON.stringify({ error: errorMessage }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
@@ -183,24 +251,22 @@ serve(async (req) => {
     let prompt = ''
     if (analysisType === 'target-role') {
       const sanitizedRole = (targetRole || '').slice(0, 100).replace(/[<>]/g, '')
-      prompt = `Act as an expert technical recruiter and ATS software. Your task is to analyze the following resume text for a candidate who is targeting a '${sanitizedRole}' role. First, identify the candidate's name from the resume text.
+      prompt = `Analyze this resume for a ${sanitizedRole} role.
 
-**Analysis Steps:**
-1. **ATS Score:** Provide an "ATS Score" on a scale of 0-100 based on a detailed analysis of keyword relevance for the target role, quantifiable achievements, formatting, and clarity. The score must be a number.
-2. **Detailed Feedback:** After the score, provide a detailed analysis for the candidate (using their name). Structure this into three sections: "**Strengths**", "**Areas for Improvement**", and "**Actionable Next Steps**" for this specific role.
+Provide the analysis in plain text only. No markdown, no headings with symbols, no bullet points, no asterisks. Use short paragraphs separated by blank lines.
 
-**Resume Text to Analyze:**
+First give an ATS Score from 0 to 100 as a number. Then discuss the candidate's strengths for this role. Then discuss areas needing improvement. Finally give actionable next steps.
+
+Resume text:
 ${resumeText}`
     } else {
-      prompt = `Act as an expert career analyst specializing in both hardware (ECE/VLSI) and software roles. Your task is to perform a two-part analysis on the provided resume. First, identify the candidate's name from the resume text.
+      prompt = `Analyze this resume and suggest the top 3 most suitable job roles.
 
-**Part 1: Top 3 Role Suggestions**
-Strictly based on the skills, projects, and experience listed, identify the top 3 most suitable job roles. Suggestions should be diverse. For each role, provide a **Confidence Score**, a "**Why it's a good fit**" explanation, and a list of "**Key skills to add or highlight**".
+Provide the analysis in plain text only. No markdown, no headings with symbols, no bullet points, no asterisks. Use short paragraphs separated by blank lines.
 
-**Part 2: General Resume Analysis**
-After the role suggestions, provide a general analysis of the resume with two sections: "**Overall Strengths**" and "**Global Improvements to Consider**".
+For each role, explain why it fits and what skills to highlight or develop. Then give overall resume strengths and improvements to consider.
 
-**Resume Text to Analyze:**
+Resume text:
 ${resumeText}`
     }
 
@@ -245,7 +311,7 @@ ${resumeText}`
     // Extract ATS score if it's a target-role analysis
     let atsScore = null
     if (analysisType === 'target-role') {
-      const scoreMatch = analysis.match(/ATS Score.*?(\d+)/i)
+      const scoreMatch = analysis.match(/ATS Score.*?(\d+)/i) || analysis.match(/(\d+)\s*(?:\/\s*100|out of 100)?/i)
       if (scoreMatch) {
         atsScore = parseInt(scoreMatch[1])
       }

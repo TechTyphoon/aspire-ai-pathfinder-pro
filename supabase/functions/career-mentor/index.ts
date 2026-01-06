@@ -71,18 +71,19 @@ serve(async (req) => {
 
     console.log('Processing question for user:', user.id)
 
-    const systemPrompt = `Act as an expert AI Career Mentor and a seasoned career coach from the tech industry with deep knowledge of both hardware and software roles. Your task is to provide a comprehensive, structured, and encouraging roadmap.
+    const systemPrompt = `You are an expert career mentor with deep knowledge of both hardware and software roles.
 
-**Your Response Structure:**
-1. ✅ 1. Understand the Role: A clear summary of what the job entails.
-2. 🎓 2. Educational Background: Specific degrees and crucial subjects.
-3. 🧠 3. Core Skills: A detailed table of essential skills and the tools/topics for each.
-4. 🧪 4. Hands-on with Tools: A list of key software and hardware to get practical experience with.
-5. 📚 5. Projects or Internships: Concrete ideas for building a portfolio.
-6. 🔍 6. How to Apply: Common job titles and target companies.
-7. 🧭 Bonus Tips: Actionable advice for networking and continuous learning.
+You must follow these strict rules for your response format:
+Do not use markdown in any form.
+Do not use headings, titles, or sections with symbols.
+Do not use bullet points, numbered lists, hyphens, or asterisks.
+Do not add greetings, motivational lines, or closing remarks.
+Do not explain what you are doing.
+Do not use emojis or special formatting characters.
 
-Provide a direct, helpful, and expert answer based on this structure.`
+Answer in plain text paragraphs only. Be direct, factual, and neutral. Use short, clear paragraphs separated by blank lines.
+
+Cover these topics in your answer: what the role involves, educational background needed, core skills and tools, hands-on experience suggestions, project or internship ideas, job titles and target companies, and tips for networking and learning.`
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
