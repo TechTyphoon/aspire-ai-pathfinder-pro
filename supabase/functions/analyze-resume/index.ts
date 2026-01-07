@@ -151,11 +151,37 @@ function extractStringsFromPdfTextObject(block: string): string[] {
       continue
     }
 
+    // Handle hex strings <...> - common for Unicode/Identity-H encoded PDFs
     if (ch === '<') {
       const end = block.indexOf('>', i + 1)
       if (end !== -1) {
         const hex = block.slice(i + 1, end).replace(/\s+/g, '')
         if (/^[0-9A-Fa-f]+$/.test(hex) && hex.length >= 2) {
+          // Try UTF-16BE decoding first (common for Identity-H CMap)
+          if (hex.length % 4 === 0) {
+            let decoded = ''
+            let isValidUnicode = true
+            for (let k = 0; k < hex.length; k += 4) {
+              const codePoint = parseInt(hex.slice(k, k + 4), 16)
+              // Valid printable Unicode range
+              if (codePoint >= 0x0020 && codePoint <= 0xFFFF) {
+                decoded += String.fromCharCode(codePoint)
+              } else if (codePoint === 0) {
+                // Skip null chars
+              } else {
+                isValidUnicode = false
+                break
+              }
+            }
+            if (isValidUnicode && decoded.length > 0) {
+              const cleaned = decoded.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim()
+              if (cleaned) results.push(cleaned)
+              i = end + 1
+              continue
+            }
+          }
+          
+          // Fallback to byte-level decoding
           const bytes = new Uint8Array(Math.floor(hex.length / 2))
           for (let k = 0; k < bytes.length; k++) {
             bytes[k] = parseInt(hex.slice(k * 2, k * 2 + 2), 16)
