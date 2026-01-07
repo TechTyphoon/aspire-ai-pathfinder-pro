@@ -16,123 +16,258 @@ interface RequestBody {
 export async function extractTextFromFile(fileData: Blob, fileName: string): Promise<string> {
   const fileBuffer = await fileData.arrayBuffer()
   const extension = fileName.split('.').pop()?.toLowerCase()
-  const uint8Array = new Uint8Array(fileBuffer)
+  const bytes = new Uint8Array(fileBuffer)
 
   if (extension === 'txt' || extension === 'md') {
     return new TextDecoder().decode(fileBuffer)
   }
 
   if (extension === 'pdf') {
-    // Simple PDF text extraction - look for text streams
-    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
-    
-    // Check if it's actually a PDF
-    if (!rawText.startsWith('%PDF')) {
-      throw new Error('Invalid PDF file format')
-    }
-
-    // Extract text between stream markers and parentheses (common PDF text patterns)
-    let extractedText = ''
-    
-    // Method 1: Extract text from BT/ET blocks (text objects)
-    const textBlocks = rawText.match(/BT[\s\S]*?ET/g) || []
-    for (const block of textBlocks) {
-      // Extract text in parentheses (literal strings)
-      const parenthesesMatches = block.match(/\(([^)]*)\)/g) || []
-      for (const match of parenthesesMatches) {
-        extractedText += match.slice(1, -1) + ' '
-      }
-      // Extract text in angle brackets (hex strings)
-      const hexMatches = block.match(/<([0-9A-Fa-f]+)>/g) || []
-      for (const hex of hexMatches) {
-        const hexStr = hex.slice(1, -1)
-        let decoded = ''
-        for (let i = 0; i < hexStr.length; i += 2) {
-          const charCode = parseInt(hexStr.substr(i, 2), 16)
-          if (charCode >= 32 && charCode < 127) {
-            decoded += String.fromCharCode(charCode)
-          }
-        }
-        if (decoded) extractedText += decoded + ' '
-      }
-    }
-
-    // Method 2: Also look for plain readable text sequences
-    const plainTextMatches = rawText.match(/[A-Za-z][A-Za-z0-9\s.,!?@#$%&*()-]{10,}/g) || []
-    for (const match of plainTextMatches) {
-      if (!match.includes('stream') && !match.includes('endstream') && !match.includes('obj')) {
-        extractedText += match + ' '
-      }
-    }
-
-    // Clean up the text
-    extractedText = extractedText
-      .replace(/\\n/g, '\n')
-      .replace(/\\r/g, '')
-      .replace(/\\t/g, ' ')
-      .replace(/\\\(/g, '(')
-      .replace(/\\\)/g, ')')
-      .replace(/\s+/g, ' ')
-      .trim()
-
-    if (extractedText.length < 50) {
-      throw new Error('Could not extract readable text from PDF. The PDF may be scanned or image-based. Please try uploading a text-based PDF or a TXT file.')
-    }
-
-    console.log('PDF text extracted, length:', extractedText.length)
-    return extractedText
+    return await extractTextFromPdf(bytes)
   }
 
   if (extension === 'docx') {
-    // DOCX is a ZIP archive - try to read as text and look for XML content
-    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array)
-    
-    // Look for document.xml content within the binary
+    // DOCX is a ZIP archive; in Edge runtime we keep a lightweight best-effort fallback.
+    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+
     const xmlStart = rawText.indexOf('<w:document')
     const xmlEnd = rawText.lastIndexOf('</w:document>')
-    
+
     if (xmlStart === -1 || xmlEnd === -1) {
-      // Fallback: extract any readable text
       const readableText = rawText.match(/[A-Za-z][A-Za-z0-9\s.,!?@#$%&*()-]{5,}/g) || []
-      const filtered = readableText.filter(t => 
-        !t.includes('Content') && 
-        !t.includes('xml') && 
+      const filtered = readableText.filter((t) =>
+        !t.includes('Content') &&
+        !t.includes('xml') &&
         !t.includes('rels') &&
         !t.includes('docProps') &&
         t.length > 10
       )
       if (filtered.length > 0) {
-        return filtered.join(' ').trim()
+        const joined = filtered.join(' ').replace(/\s+/g, ' ').trim()
+        if (joined.length >= 50) return joined
       }
       throw new Error('Could not parse DOCX file. Please try uploading as PDF or TXT.')
     }
 
     const xmlContent = rawText.substring(xmlStart, xmlEnd + '</w:document>'.length)
-    // Strip XML tags and get text
-    const text = xmlContent
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    const text = xmlContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 
     console.log('DOCX text extracted, length:', text.length)
+
+    if (text.length < 50) {
+      throw new Error('Could not extract sufficient text from DOCX. Please try uploading as PDF or TXT.')
+    }
+
     return text
   }
 
   // Fallback: try to read as plain text
   const text = new TextDecoder('utf-8', { fatal: false }).decode(fileBuffer)
-  
+
   // Check if it looks like binary
-  const nonPrintable = text.split('').filter(c => {
+  const nonPrintable = text.split('').filter((c) => {
     const code = c.charCodeAt(0)
     return code < 32 && code !== 10 && code !== 13 && code !== 9
   }).length
-  
+
   if (nonPrintable > text.length * 0.1) {
     throw new Error('Unsupported file format. Please upload a PDF, DOCX, or TXT file with readable text.')
   }
 
   return text
 }
+
+function isPdf(bytes: Uint8Array): boolean {
+  if (bytes.length < 4) return false
+  return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 // %PDF
+}
+
+function indexOfAscii(haystack: Uint8Array, needle: Uint8Array, from = 0): number {
+  outer: for (let i = from; i <= haystack.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (haystack[i + j] !== needle[j]) continue outer
+    }
+    return i
+  }
+  return -1
+}
+
+function sliceToAscii(bytes: Uint8Array): string {
+  // Decode as latin-1 style to avoid throwing on binary; good enough for PDF keywords.
+  let out = ''
+  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i])
+  return out
+}
+
+async function inflateDeflate(bytes: Uint8Array): Promise<Uint8Array> {
+  if (typeof (globalThis as any).DecompressionStream === 'undefined') {
+    throw new Error('Could not extract readable text from PDF. This PDF uses compression that is not supported in this environment. Please upload a text-based PDF or a TXT file.')
+  }
+
+  try {
+    const ds = new DecompressionStream('deflate')
+    const stream = new Blob([bytes]).stream().pipeThrough(ds)
+    const ab = await new Response(stream).arrayBuffer()
+    return new Uint8Array(ab)
+  } catch {
+    throw new Error('Could not extract readable text from PDF. This PDF appears to be compressed in an unsupported way. Please upload a text-based PDF or a TXT file.')
+  }
+}
+
+function extractStringsFromPdfTextObject(block: string): string[] {
+  const results: string[] = []
+  const len = block.length
+  let i = 0
+
+  while (i < len) {
+    const ch = block[i]
+
+    if (ch === '(') {
+      let depth = 1
+      let j = i + 1
+      let buf = ''
+      while (j < len && depth > 0) {
+        const c = block[j]
+        if (c === '\\') {
+          const next = block[j + 1] ?? ''
+          if (next === 'n') buf += '\n'
+          else if (next === 'r') buf += '\r'
+          else if (next === 't') buf += ' '
+          else if (next === '(') buf += '('
+          else if (next === ')') buf += ')'
+          else if (next === '\\') buf += '\\'
+          else buf += next
+          j += 2
+          continue
+        }
+        if (c === '(') depth++
+        if (c === ')') depth--
+        if (depth > 0) buf += c
+        j++
+      }
+      const cleaned = buf.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim()
+      if (cleaned) results.push(cleaned)
+      i = j
+      continue
+    }
+
+    if (ch === '<') {
+      const end = block.indexOf('>', i + 1)
+      if (end !== -1) {
+        const hex = block.slice(i + 1, end).replace(/\s+/g, '')
+        if (/^[0-9A-Fa-f]+$/.test(hex) && hex.length >= 2) {
+          const bytes = new Uint8Array(Math.floor(hex.length / 2))
+          for (let k = 0; k < bytes.length; k++) {
+            bytes[k] = parseInt(hex.slice(k * 2, k * 2 + 2), 16)
+          }
+          const decoded = new TextDecoder('utf-8', { fatal: false })
+            .decode(bytes)
+            .replace(/[\u0000-\u001f]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+          if (decoded) results.push(decoded)
+        }
+        i = end + 1
+        continue
+      }
+    }
+
+    i++
+  }
+
+  return results
+}
+
+function extractTextFromPdfPayloadString(payload: string): string {
+  const textObjects = payload.match(/BT[\s\S]*?ET/g) || []
+  const pieces: string[] = []
+
+  for (const block of textObjects) {
+    for (const s of extractStringsFromPdfTextObject(block)) {
+      pieces.push(s)
+    }
+  }
+
+  // Fallback: sometimes content isn't wrapped in BT/ET in a way our regex catches.
+  if (pieces.length === 0) {
+    for (const s of extractStringsFromPdfTextObject(payload)) {
+      pieces.push(s)
+    }
+  }
+
+  return pieces.join(' ')
+}
+
+function looksLikeRealResumeText(text: string): boolean {
+  const cleaned = text.replace(/\s+/g, ' ').trim()
+  if (cleaned.length < 50) return false
+
+  // Must contain some normal words.
+  const words = cleaned.match(/[A-Za-z]{3,}/g) || []
+  if (words.length < 20) return false
+
+  // Reject if it still looks like PDF structure noise.
+  const noiseHits = (cleaned.match(/\b(obj|endobj|xref|trailer|startxref|endstream|stream)\b/gi) || []).length
+  if (noiseHits >= 3) return false
+
+  return true
+}
+
+async function extractTextFromPdf(bytes: Uint8Array): Promise<string> {
+  if (!isPdf(bytes)) {
+    throw new Error('Invalid PDF file format')
+  }
+
+  const streamNeedle = new TextEncoder().encode('stream')
+  const endStreamNeedle = new TextEncoder().encode('endstream')
+
+  let cursor = 0
+  const extractedParts: string[] = []
+
+  while (cursor < bytes.length) {
+    const streamIdx = indexOfAscii(bytes, streamNeedle, cursor)
+    if (streamIdx === -1) break
+
+    // Determine the stream payload start after EOL.
+    let payloadStart = streamIdx + streamNeedle.length
+    if (bytes[payloadStart] === 0x0d && bytes[payloadStart + 1] === 0x0a) payloadStart += 2
+    else if (bytes[payloadStart] === 0x0a || bytes[payloadStart] === 0x0d) payloadStart += 1
+
+    const endIdx = indexOfAscii(bytes, endStreamNeedle, payloadStart)
+    if (endIdx === -1) break
+
+    let payloadEnd = endIdx
+    while (payloadEnd > payloadStart && (bytes[payloadEnd - 1] === 0x0a || bytes[payloadEnd - 1] === 0x0d)) {
+      payloadEnd--
+    }
+
+    const dictWindowStart = Math.max(0, streamIdx - 600)
+    const dictWindow = sliceToAscii(bytes.slice(dictWindowStart, streamIdx))
+    const isFlate = /\/FlateDecode\b/.test(dictWindow)
+
+    const payloadBytes = bytes.slice(payloadStart, payloadEnd)
+    const maybeDecompressed = isFlate ? await inflateDeflate(payloadBytes) : payloadBytes
+
+    const payloadStr = new TextDecoder('utf-8', { fatal: false }).decode(maybeDecompressed)
+    const extracted = extractTextFromPdfPayloadString(payloadStr)
+    if (extracted) extractedParts.push(extracted)
+
+    cursor = endIdx + endStreamNeedle.length
+  }
+
+  const combined = extractedParts
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!looksLikeRealResumeText(combined)) {
+    throw new Error('Could not extract readable text from PDF. The PDF may be scanned/image-based or heavily encoded. Please try exporting as a text-based PDF or uploading a TXT file.')
+  }
+
+  console.log('PDF text extracted, length:', combined.length)
+  return combined
+}
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

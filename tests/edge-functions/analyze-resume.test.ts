@@ -36,6 +36,37 @@ Deno.test("extractTextFromFile: invalid pdf throws friendly error", async () => 
   );
 });
 
+Deno.test("extractTextFromFile: flate-compressed pdf extracts readable text", async () => {
+  if (typeof (globalThis as any).CompressionStream === "undefined") {
+    // Environment does not support CompressionStream; skip.
+    return;
+  }
+
+  const textObject = "BT /F1 12 Tf 72 720 Td (John Doe) Tj (Software Engineer) Tj ET";
+  const raw = new TextEncoder().encode(textObject);
+
+  const cs = new CompressionStream("deflate");
+  const compressedAb = await new Response(new Blob([raw]).stream().pipeThrough(cs)).arrayBuffer();
+  const compressed = new Uint8Array(compressedAb);
+
+  const header = new TextEncoder().encode(
+    `%PDF-1.4\n1 0 obj\n<< /Length ${compressed.length} /Filter /FlateDecode >>\nstream\n`,
+  );
+  const footer = new TextEncoder().encode("\nendstream\nendobj\n%%EOF");
+
+  const pdf = new Uint8Array(header.length + compressed.length + footer.length);
+  pdf.set(header, 0);
+  pdf.set(compressed, header.length);
+  pdf.set(footer, header.length + compressed.length);
+
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const text = await extractTextFromFile(blob, "resume.pdf");
+
+  if (!text.includes("John Doe") || !text.includes("Software Engineer")) {
+    throw new Error(`Expected extracted text to include resume content, got: ${text}`);
+  }
+});
+
 Deno.test("extractTextFromFile: pdf with no extractable text throws helpful error", async () => {
   // A minimal PDF header but no actual text content
   const pdfContent = "%PDF-1.4\n%%EOF";
