@@ -2,6 +2,7 @@ import { Sparkles, LogOut, User, Settings, ChevronDown } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,19 +15,22 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 export const Header = () => {
   const { signOut, user } = useAuth()
+  const navigate = useNavigate()
 
   const handleLogout = async () => {
     await signOut()
+    navigate('/')
   }
 
+  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'
   const userEmail = user?.email || ''
-  const userInitials = userEmail ? userEmail.substring(0, 2).toUpperCase() : 'U'
+  const userInitials = userName.substring(0, 2).toUpperCase()
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
             <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary">
               <Sparkles className="h-5 w-5 text-primary-foreground" />
               <div className="absolute -inset-0.5 -z-10 rounded-xl bg-gradient-to-br from-primary to-secondary opacity-50 blur-lg" />
@@ -55,8 +59,8 @@ export const Header = () => {
                         {userInitials}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="hidden sm:inline max-w-[120px] truncate text-sm">
-                      {userEmail}
+                    <span className="hidden sm:inline max-w-[120px] truncate text-sm font-medium">
+                      {userName}
                     </span>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </Button>
@@ -64,16 +68,16 @@ export const Header = () => {
                 <DropdownMenuContent align="end" className="w-56 z-50 bg-popover border border-border shadow-lg">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">My Account</p>
+                      <p className="text-sm font-medium">{userName}</p>
                       <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
