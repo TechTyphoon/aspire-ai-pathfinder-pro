@@ -1,7 +1,16 @@
-import { Sparkles, LogOut } from 'lucide-react'
+import { Sparkles, LogOut, User, Settings, ChevronDown } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 
 export const Header = () => {
   const { signOut, user } = useAuth()
@@ -9,6 +18,9 @@ export const Header = () => {
   const handleLogout = async () => {
     await signOut()
   }
+
+  const userEmail = user?.email || ''
+  const userInitials = userEmail ? userEmail.substring(0, 2).toUpperCase() : 'U'
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
@@ -35,10 +47,43 @@ export const Header = () => {
               <span className="text-sm text-muted-foreground">AI Ready</span>
             </div>
             {user && (
-              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Logout</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 px-2 sm:px-3">
+                    <Avatar className="h-6 w-6">
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                        {userInitials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden sm:inline max-w-[120px] truncate text-sm">
+                      {userEmail}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 z-50 bg-popover border border-border shadow-lg">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium">My Account</p>
+                      <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem className="cursor-pointer">
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </div>
