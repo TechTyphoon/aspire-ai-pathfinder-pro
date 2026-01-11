@@ -1,7 +1,15 @@
-import { Sparkles } from 'lucide-react'
+import { Sparkles, LogOut } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/AuthContext'
 
 export const Header = () => {
+  const { signOut, user } = useAuth()
+
+  const handleLogout = async () => {
+    await signOut()
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
       <div className="container mx-auto px-4 py-4">
@@ -26,6 +34,12 @@ export const Header = () => {
               <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-sm text-muted-foreground">AI Ready</span>
             </div>
+            {user && (
+              <Button variant="outline" size="sm" onClick={handleLogout} className="gap-2">
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
