@@ -1,0 +1,147 @@
+# Iterative and Incremental SDLC Diagram
+## ASPIRE AI PATHFINDER Project
+
+This diagram can be drawn on paper using boxes, arrows, and circles. Here's how to draw it step by step:
+
+---
+
+## Drawing Instructions
+
+### Main Structure
+
+1. Draw a large circle in the center. This represents the iterative cycle.
+
+2. Divide the circle into 6 segments (like a pie) for the 6 phases:
+   - Requirements Analysis
+   - Design
+   - Implementation
+   - Testing
+   - Deployment
+   - Review & Feedback
+
+3. Draw curved arrows inside the circle connecting each segment to the next, going clockwise.
+
+4. Draw a spiral arrow from "Review & Feedback" back to "Requirements Analysis" to show iteration.
+
+### Increments Timeline
+
+5. On the left side, draw a vertical timeline with boxes for each increment:
+
+   ```
+   [Increment 1: Auth & Database]
+            |
+            v
+   [Increment 2: File Upload]
+            |
+            v
+   [Increment 3: AI Integration]
+            |
+            v
+   [Increment 4: Role Suggestions]
+            |
+            v
+   [Increment 5: Career Explorer]
+            |
+            v
+   [Increment 6: AI Chat]
+   ```
+
+6. From each increment box, draw an arrow pointing to the central circle, showing each increment goes through all phases.
+
+---
+
+## ASCII Representation
+
+```
+                    ITERATIVE AND INCREMENTAL SDLC
+                         ASPIRE AI PATHFINDER
+
+    INCREMENTS                    ITERATIVE CYCLE
+    
+ [Increment 1]  ------------->    +------------------+
+ Auth & Database                  |   Requirements   |
+      |                           |     Analysis     |
+      |                           +--------+---------+
+      v                                    |
+                                          v
+ [Increment 2]  ------------->    +------------------+
+ File Upload                      |      Design      |
+      |                           +--------+---------+
+      |                                    |
+      v                                    v
+                                  +------------------+
+ [Increment 3]  ------------->    |  Implementation  |
+ AI Integration                   +--------+---------+
+      |                                    |
+      |                                    v
+      v                           +------------------+
+                                  |     Testing      |
+ [Increment 4]  ------------->    +--------+---------+
+ Role Suggestions                          |
+      |                                    v
+      |                           +------------------+
+      v                           |    Deployment    |
+                                  +--------+---------+
+ [Increment 5]  ------------->             |
+ Career Explorer                           v
+      |                           +------------------+
+      |                           | Review & Feedback|
+      v                           +--------+---------+
+                                           |
+ [Increment 6]  ------------->             |
+ AI Chat                                   |
+                           +---------------+
+                           |  (Iterate back to Requirements
+                           |   for next increment or
+                           v   refinement)
+                    
+                    
+    Each increment goes through all phases in the cycle.
+    After review, either start next increment or refine current one.
+```
+
+---
+
+## Key Elements to Show
+
+### Arrows:
+- **Horizontal arrows** from increment boxes to the cycle: Shows each increment enters the development cycle
+- **Curved arrows** within the cycle: Shows sequential flow through phases
+- **Backward arrow** from Review to Requirements: Shows iteration
+
+### Labels:
+- Label each increment with what feature it adds
+- Label each phase in the cycle
+- Add a note: "Cycle repeats for each increment"
+
+### Additional Notes on Diagram:
+
+Add these annotations around the drawing:
+
+- Near Increment boxes: "Each increment adds working functionality"
+- Near the cycle: "All increments follow the same development cycle"
+- Near the backward arrow: "Iterate based on feedback"
+- At bottom: "Final product = Sum of all increments"
+
+---
+
+## Color Coding (if using colors)
+
+- Increments: Light blue boxes
+- Cycle phases: Different color for each (rainbow)
+- Arrows: Black
+- Iteration arrow: Red (to highlight the feedback loop)
+
+---
+
+## Simplified Hand-Drawn Version
+
+For a quick sketch on paper:
+
+1. Draw 6 boxes stacked vertically on the left (increments)
+2. Draw a circle on the right with "Plan → Design → Code → Test → Deploy → Review" written around it
+3. Draw arrows from each box to the circle
+4. Draw a curved arrow from "Review" back to "Plan"
+5. Write "Repeat for each increment" at the bottom
+
+That's it. Simple, clear, and shows the key idea: multiple increments, each going through an iterative cycle.

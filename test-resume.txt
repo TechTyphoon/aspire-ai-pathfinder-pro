@@ -1,0 +1,52 @@
+John Doe - Software Developer
+
+Contact Information:
+Email: john.doe@email.com
+Phone: +1-555-0123
+Location: San Francisco, CA
+
+Summary:
+Experienced full-stack developer with 5 years of expertise in JavaScript, React, Node.js, and Python. 
+Passionate about building scalable web applications and solving complex problems.
+
+Technical Skills:
+- Programming Languages: JavaScript, Python, TypeScript, Java
+- Frontend: React, Vue.js, HTML5, CSS3, Bootstrap, Tailwind CSS
+- Backend: Node.js, Express.js, Django, FastAPI
+- Databases: PostgreSQL, MongoDB, Redis
+- Cloud: AWS, Google Cloud Platform, Docker, Kubernetes
+- Tools: Git, Jenkins, Jira, VS Code
+
+Work Experience:
+
+Senior Software Developer | TechCorp Inc. | 2022 - Present
+- Led development of microservices architecture serving 100K+ users
+- Implemented CI/CD pipelines reducing deployment time by 60%
+- Mentored junior developers and conducted code reviews
+- Built RESTful APIs and integrated third-party services
+
+Software Developer | StartupXYZ | 2020 - 2022
+- Developed React-based dashboard increasing user engagement by 40%
+- Optimized database queries improving application performance by 30%
+- Collaborated with cross-functional teams using Agile methodology
+- Implemented automated testing reducing bugs by 50%
+
+Junior Developer | DevAgency | 2019 - 2020
+- Built responsive web applications using modern JavaScript frameworks
+- Participated in client meetings and requirement gathering
+- Maintained legacy code and performed bug fixes
+
+Education:
+Bachelor of Science in Computer Science
+University of California, Berkeley | 2015 - 2019
+GPA: 3.7/4.0
+
+Projects:
+E-commerce Platform - Full-stack web application with payment integration
+Weather App - React Native mobile application with real-time data
+Chat Application - Real-time messaging app using WebSocket technology
+
+Certifications:
+- AWS Certified Developer Associate (2023)
+- Google Cloud Professional Developer (2022)
+- MongoDB Certified Developer (2021)

@@ -138,7 +138,7 @@ export const SignUpForm = ({ onSwitchToLogin }: SignUpFormProps) => {
         <button
           type="button"
           onClick={onSwitchToLogin}
-          className="text-sm text-blue-600 hover:text-blue-500 underline"
+          className="text-sm text-blue-600 hover:text-blue-500 underline py-3 px-4 min-h-[44px]"
           disabled={isLoading}
         >
           Already have an account? Sign in

@@ -28,7 +28,7 @@ const Settings = () => {
         <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-secondary/10 rounded-full blur-3xl animate-float-delayed" />
       </div>
 
-      <main className="container mx-auto px-4 py-8 max-w-2xl">
+      <main className="container mx-auto py-8 max-w-4xl">
         <Button
           variant="ghost"
           onClick={() => navigate('/')}

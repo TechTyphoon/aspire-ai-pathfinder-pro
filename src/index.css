@@ -1,10 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* Modern Aspiro AI Design System */
-
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
@@ -115,6 +115,8 @@
 
   html {
     font-family: 'Plus Jakarta Sans', sans-serif;
+    /* Prevent scroll anchoring from causing jitter during programmatic scrolls */
+    overflow-anchor: none;
   }
 
   body {

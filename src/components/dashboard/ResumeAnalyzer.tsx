@@ -1,207 +1,229 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, FileText, Brain, Loader2, CheckCircle2, Sparkles } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
-import { supabase } from '@/integrations/supabase/client'
+import { FileText, Brain, Loader2, CheckCircle2, Sparkles, AlertTriangle, RefreshCw } from 'lucide-react'
+import { useResumeAnalysis } from '@/hooks/useResumeAnalysis'
+import { UploadZone, AnalysisProgress, AnalysisResult } from '@/components/resume'
 
 export const ResumeAnalyzer = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [targetRole, setTargetRole] = useState('')
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null)
-  const [suggestionsResult, setSuggestionsResult] = useState<string | null>(null)
+  const {
+    // State
+    resumeFile,
+    resumeFileName,
+    analysisResult,
+    suggestionsResult,
+    targetRole,
+    isAnalyzing,
+    analyzeError,
+    hasResume,
+    loadingPhase,
+    analysisType,
+    loadingMessage,
+    loadingMessageIndex,
+    // Actions
+    setResumeFile,
+    setTargetRole,
+    setAnalyzeError,
+    clearResume,
+    analyzeForRole,
+    suggestRoles,
+    // Button states
+    analyzeButtonDisabled,
+    analyzeButtonHint,
+    suggestButtonDisabled,
+    suggestButtonHint,
+  } = useResumeAnalysis()
+
+  // Local UI state only
   const [isDragActive, setIsDragActive] = useState(false)
-  const { toast } = useToast()
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0])
-      setAnalysisResult(null)
-      setSuggestionsResult(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  const loadingRef = useRef<HTMLDivElement>(null)
+
+  // Ref to track and cancel ongoing scroll animations
+  const scrollAnimationRef = useRef<number | null>(null)
+
+  // Premium smooth scroll with easing - cancellable
+  const smoothScrollTo = useCallback((element: HTMLElement, offset = 0) => {
+    if (scrollAnimationRef.current !== null) {
+      cancelAnimationFrame(scrollAnimationRef.current)
+      scrollAnimationRef.current = null
     }
-  }
 
-  const handleDragOver = (e: React.DragEvent) => {
+    const targetPosition = element.getBoundingClientRect().top + window.scrollY - offset
+    const startPosition = window.scrollY
+    const distance = targetPosition - startPosition
+
+    if (Math.abs(distance) < 5) return
+
+    const duration = Math.min(600, Math.max(300, Math.abs(distance) * 0.5))
+    let startTime: number | null = null
+
+    const easeOutExpo = (t: number): number => t === 1 ? 1 : 1 - Math.pow(2, -10 * t)
+
+    const animation = (currentTime: number) => {
+      if (startTime === null) startTime = currentTime
+      const timeElapsed = currentTime - startTime
+      const progress = Math.min(timeElapsed / duration, 1)
+      const easeProgress = easeOutExpo(progress)
+
+      window.scrollTo({
+        top: startPosition + distance * easeProgress,
+        behavior: 'instant'
+      })
+
+      if (progress < 1) {
+        scrollAnimationRef.current = requestAnimationFrame(animation)
+      } else {
+        scrollAnimationRef.current = null
+      }
+    }
+
+    scrollAnimationRef.current = requestAnimationFrame(animation)
+  }, [])
+
+  // Cleanup scroll animation on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollAnimationRef.current !== null) {
+        cancelAnimationFrame(scrollAnimationRef.current)
+      }
+    }
+  }, [])
+
+  // Auto-scroll to loading indicator when analysis starts
+  useEffect(() => {
+    if (isAnalyzing && loadingRef.current) {
+      const timeoutId = setTimeout(() => {
+        if (loadingRef.current) {
+          smoothScrollTo(loadingRef.current, 100)
+        }
+      }, 80)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isAnalyzing, smoothScrollTo])
+
+  // Auto-scroll to results when analysis completes
+  useEffect(() => {
+    if (!isAnalyzing && (analysisResult || suggestionsResult) && resultsRef.current) {
+      const timeoutId = setTimeout(() => {
+        if (resultsRef.current) {
+          smoothScrollTo(resultsRef.current, 60)
+        }
+      }, 120)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [isAnalyzing, analysisResult, suggestionsResult, smoothScrollTo])
+
+  // Drag and drop handlers
+  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setResumeFile(event.target.files[0])
+    }
+  }, [setResumeFile])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragActive(true)
-  }
+  }, [])
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setIsDragActive(false)
-  }
+  }, [])
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragActive(false)
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setSelectedFile(e.dataTransfer.files[0])
-      setAnalysisResult(null)
-      setSuggestionsResult(null)
+      setResumeFile(e.dataTransfer.files[0])
     }
-  }
-
-  const uploadFile = async (file: File) => {
-    // Get current user
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('You must be logged in to upload files')
-
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-    // File path includes user ID as folder prefix for RLS policy compliance
-    const filePath = `${user.id}/${fileName}`
-
-    const { error } = await supabase.storage
-      .from('resumes')
-      .upload(filePath, file)
-
-    if (error) throw error
-    return filePath
-  }
-
-  const handleAnalyzeForRole = async () => {
-    if (!selectedFile || !targetRole.trim()) {
-      toast({
-        title: "Missing information",
-        description: "Please select a file and enter a target role",
-        variant: "destructive"
-      })
-      return
-    }
-
-    setIsAnalyzing(true)
-    setAnalysisResult(null)
-    setSuggestionsResult(null)
-
-    try {
-      const filePath = await uploadFile(selectedFile)
-
-      const { data, error } = await supabase.functions.invoke('analyze-resume', {
-        body: {
-          filePath,
-          analysisType: 'target-role',
-          targetRole
-        }
-      })
-
-      if (error) throw error
-
-      setAnalysisResult(data.analysis)
-      
-      toast({
-        title: "Analysis complete",
-        description: `Resume analyzed for ${targetRole} role`,
-      })
-    } catch (error: any) {
-      console.error('Analysis error:', error)
-      const errorMessage = error?.message || error?.context?.body?.error || 'Unable to analyze resume. Please try again.'
-      toast({
-        title: "Analysis failed",
-        description: errorMessage,
-        variant: "destructive"
-      })
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
-
-  const handleSuggestRoles = async () => {
-    if (!selectedFile) {
-      toast({
-        title: "File required",
-        description: "Please select a resume file",
-        variant: "destructive"
-      })
-      return
-    }
-
-    setIsAnalyzing(true)
-    setAnalysisResult(null)
-    setSuggestionsResult(null)
-
-    try {
-      const filePath = await uploadFile(selectedFile)
-
-      const { data, error } = await supabase.functions.invoke('analyze-resume', {
-        body: {
-          filePath,
-          analysisType: 'best-fit'
-        }
-      })
-
-      if (error) throw error
-
-      setSuggestionsResult(data.analysis)
-      
-      toast({
-        title: "Suggestions ready",
-        description: "Career role suggestions generated",
-      })
-    } catch (error: any) {
-      console.error('Suggestions error:', error)
-      const errorMessage = error?.message || error?.context?.body?.error || 'Unable to generate role suggestions. Please try again.'
-      toast({
-        title: "Suggestions failed",
-        description: errorMessage,
-        variant: "destructive"
-      })
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
+  }, [setResumeFile])
 
   return (
-    <div className="space-y-8">
+    <article className="space-y-8" aria-labelledby="resume-analyzer-heading">
       {/* Header */}
-      <div className="text-center max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4">
+      <header className="text-center max-w-4xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-4" aria-hidden="true">
           <FileText className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium text-primary">Resume Analysis</span>
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
+        <h2 id="resume-analyzer-heading" className="text-2xl md:text-3xl font-bold text-foreground mb-3">
           Unlock Your Resume's Potential
         </h2>
         <p className="text-muted-foreground">
-          Get AI-powered insights about your resume and discover career opportunities tailored to your experience
+          Analyze your resume against target roles and identify gaps.
         </p>
-      </div>
+      </header>
 
       {/* File Upload Section */}
-      <div 
-        className={`upload-zone ${isDragActive ? 'active' : ''} ${selectedFile ? 'border-primary/50 bg-primary/5' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <input
-          id="resume-upload"
-          type="file"
-          className="sr-only"
-          accept=".pdf,.docx,.txt"
-          onChange={handleFileChange}
+      <div className="relative">
+        <UploadZone
+          selectedFile={resumeFile}
+          resumeFileName={resumeFileName}
+          isDragActive={isDragActive}
+          onFileChange={handleFileChange}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClear={clearResume}
         />
-        <label htmlFor="resume-upload" className="cursor-pointer block">
-          {selectedFile ? (
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center mb-4">
-                <CheckCircle2 className="w-8 h-8 text-primary" />
-              </div>
-              <p className="text-lg font-semibold text-foreground mb-1">{selectedFile.name}</p>
-              <p className="text-sm text-muted-foreground">Click or drag to replace</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                <Upload className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <p className="text-lg font-semibold text-foreground mb-1">Upload your resume</p>
-              <p className="text-sm text-muted-foreground mb-2">Drag and drop or click to browse</p>
-              <p className="text-xs text-muted-foreground/70">PDF, DOCX, TXT up to 10MB</p>
-            </div>
-          )}
-        </label>
       </div>
+
+      {/* Resume uploaded indicator */}
+      {resumeFileName && !resumeFile && (
+        <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-primary/10 border border-primary/20">
+          <CheckCircle2 className="w-4 h-4 text-primary" />
+          <span className="text-sm text-primary">Using previously uploaded resume: "{resumeFileName}"</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearResume}
+            className="ml-2 h-7 px-2 text-muted-foreground hover:text-destructive"
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
+      {/* Analysis already exists indicator */}
+      {(analysisResult || suggestionsResult) && !isAnalyzing && (
+        <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-muted/50 border border-border/50">
+          <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            Analysis completed • Scroll down to view results or run a new analysis
+          </span>
+        </div>
+      )}
+
+      {/* Error State */}
+      {analyzeError && (
+        <div className="flex items-center justify-between p-4 rounded-xl bg-destructive/10 border border-destructive/20" role="alert">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-destructive" />
+            <div>
+              <span className="text-sm font-medium text-destructive block">Analysis couldn't be completed</span>
+              <span className="text-xs text-destructive/80">
+                {analyzeError.toLowerCase().includes('network') || analyzeError.toLowerCase().includes('fetch')
+                  ? 'Check your internet connection and try again.'
+                  : analyzeError.toLowerCase().includes('file') || analyzeError.toLowerCase().includes('upload')
+                    ? 'There was an issue with your file. Try re-uploading your resume.'
+                    : 'Try again, or upload a different resume file.'}
+              </span>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setAnalyzeError(null)}
+            className="border-destructive/30 text-destructive hover:bg-destructive/10"
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       {/* Analysis Options */}
       <div className="grid md:grid-cols-2 gap-6">
@@ -225,25 +247,32 @@ export const ResumeAnalyzer = () => {
                 value={targetRole}
                 onChange={(e) => setTargetRole(e.target.value)}
                 className="mt-2 input-modern"
+                disabled={isAnalyzing}
               />
+              <p className="text-xs text-muted-foreground mt-1.5">Enter the job title you're applying for</p>
             </div>
-            <Button 
-              onClick={handleAnalyzeForRole}
-              disabled={isAnalyzing || !selectedFile || !targetRole.trim()}
-              className="w-full btn-primary"
-            >
-              {isAnalyzing && !suggestionsResult ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Analyze Resume
-                </>
+            <div className="space-y-2">
+              <Button 
+                onClick={analyzeForRole}
+                disabled={analyzeButtonDisabled}
+                className="w-full btn-primary"
+              >
+                {isAnalyzing && analysisType === 'role' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {loadingPhase === 'preparing' ? 'Preparing...' : 'Analyzing...'}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Analyze for This Role
+                  </>
+                )}
+              </Button>
+              {analyzeButtonHint && !isAnalyzing && (
+                <p className="text-xs text-muted-foreground text-center">{analyzeButtonHint}</p>
               )}
-            </Button>
+            </div>
           </div>
         </div>
 
@@ -261,44 +290,54 @@ export const ResumeAnalyzer = () => {
           <p className="text-muted-foreground text-sm mb-4">
             Our AI will analyze your skills and experience to recommend the most suitable career paths
           </p>
-          <Button 
-            onClick={handleSuggestRoles}
-            disabled={isAnalyzing || !selectedFile}
-            className="w-full btn-secondary"
-          >
-            {isAnalyzing && !analysisResult ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Brain className="w-4 h-4 mr-2" />
-                Suggest Roles
-              </>
+          <div className="space-y-2">
+            <Button 
+              onClick={suggestRoles}
+              disabled={suggestButtonDisabled}
+              className="w-full btn-secondary"
+            >
+              {isAnalyzing && analysisType === 'suggestions' ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {loadingPhase === 'preparing' ? 'Preparing...' : 'Generating...'}
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4 mr-2" />
+                  Suggest Roles
+                </>
+              )}
+            </Button>
+            {suggestButtonHint && !isAnalyzing && (
+              <p className="text-xs text-muted-foreground text-center">{suggestButtonHint}</p>
             )}
-          </Button>
+          </div>
         </div>
       </div>
 
-      {/* Results Display */}
-      {(analysisResult || suggestionsResult) && !isAnalyzing && (
-        <div className="glass-card p-6 animate-fade-in-up">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-foreground">
-              {analysisResult ? `Analysis Results for ${targetRole}` : 'Role Suggestions'}
-            </h3>
-          </div>
-          <div className="bg-muted/30 rounded-xl p-5 border border-border/50">
-            <pre className="whitespace-pre-wrap text-foreground text-sm leading-relaxed font-sans">
-              {analysisResult || suggestionsResult}
-            </pre>
-          </div>
+      {/* Loading Skeleton State */}
+      {isAnalyzing && !analysisResult && !suggestionsResult && (
+        <div ref={loadingRef}>
+          <AnalysisProgress
+            loadingMessage={loadingMessage}
+            loadingMessageIndex={loadingMessageIndex}
+          />
         </div>
       )}
-    </div>
+
+      {/* Results Display */}
+      {(analysisResult || suggestionsResult) && (
+        <div ref={resultsRef}>
+          <AnalysisResult
+            analysisResult={analysisResult}
+            suggestionsResult={suggestionsResult}
+            targetRole={targetRole}
+            isAnalyzing={isAnalyzing}
+            loadingMessage={loadingMessage}
+            headerRef={headerRef}
+          />
+        </div>
+      )}
+    </article>
   )
 }

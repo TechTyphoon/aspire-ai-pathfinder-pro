@@ -1,501 +1,409 @@
+// @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { extractText } from "npm:unpdf@0.12.1"
+
+const FUNCTION_VERSION = "2026-01-27T05:00:00Z"
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 }
 
-interface RequestBody {
-  filePath: string
-  analysisType: 'target-role' | 'best-fit'
-  targetRole?: string
+const MAX_TEXT_CHARS = 12000
+
+function normalizeText(text: string) {
+  return text.replace(/\s+/g, " ").trim().slice(0, MAX_TEXT_CHARS)
 }
 
-// Helper function to extract text from different file types
-export async function extractTextFromFile(fileData: Blob, fileName: string): Promise<string> {
-  const fileBuffer = await fileData.arrayBuffer()
-  const extension = fileName.split('.').pop()?.toLowerCase()
-  const bytes = new Uint8Array(fileBuffer)
-
-  if (extension === 'txt' || extension === 'md') {
-    return new TextDecoder().decode(fileBuffer)
-  }
-
-  if (extension === 'pdf') {
-    return await extractTextFromPdf(bytes)
-  }
-
-  if (extension === 'docx') {
-    // DOCX is a ZIP archive; in Edge runtime we keep a lightweight best-effort fallback.
-    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(bytes)
-
-    const xmlStart = rawText.indexOf('<w:document')
-    const xmlEnd = rawText.lastIndexOf('</w:document>')
-
-    if (xmlStart === -1 || xmlEnd === -1) {
-      const readableText = rawText.match(/[A-Za-z][A-Za-z0-9\s.,!?@#$%&*()-]{5,}/g) || []
-      const filtered = readableText.filter((t) =>
-        !t.includes('Content') &&
-        !t.includes('xml') &&
-        !t.includes('rels') &&
-        !t.includes('docProps') &&
-        t.length > 10
-      )
-      if (filtered.length > 0) {
-        const joined = filtered.join(' ').replace(/\s+/g, ' ').trim()
-        if (joined.length >= 50) return joined
-      }
-      throw new Error('Could not parse DOCX file. Please try uploading as PDF or TXT.')
-    }
-
-    const xmlContent = rawText.substring(xmlStart, xmlEnd + '</w:document>'.length)
-    const text = xmlContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-
-    console.log('DOCX text extracted, length:', text.length)
-
-    if (text.length < 50) {
-      throw new Error('Could not extract sufficient text from DOCX. Please try uploading as PDF or TXT.')
-    }
-
-    return text
-  }
-
-  // Fallback: try to read as plain text
-  const text = new TextDecoder('utf-8', { fatal: false }).decode(fileBuffer)
-
-  // Check if it looks like binary
-  const nonPrintable = text.split('').filter((c) => {
-    const code = c.charCodeAt(0)
-    return code < 32 && code !== 10 && code !== 13 && code !== 9
-  }).length
-
-  if (nonPrintable > text.length * 0.1) {
-    throw new Error('Unsupported file format. Please upload a PDF, DOCX, or TXT file with readable text.')
-  }
-
-  return text
+function isTextFile(fileName: string): boolean {
+  const ext = fileName.split(".").pop()?.toLowerCase()
+  return ext === "txt" || ext === "md"
 }
 
-function isPdf(bytes: Uint8Array): boolean {
-  if (bytes.length < 4) return false
-  return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 // %PDF
+function isPDFFile(fileName: string): boolean {
+  const ext = fileName.split(".").pop()?.toLowerCase()
+  return ext === "pdf"
 }
 
-function indexOfAscii(haystack: Uint8Array, needle: Uint8Array, from = 0): number {
-  outer: for (let i = from; i <= haystack.length - needle.length; i++) {
-    for (let j = 0; j < needle.length; j++) {
-      if (haystack[i + j] !== needle[j]) continue outer
-    }
-    return i
-  }
-  return -1
+function isSupportedFile(fileName: string): boolean {
+  const ext = fileName.split(".").pop()?.toLowerCase()
+  return ext === "pdf" || ext === "txt" || ext === "md"
 }
 
-function sliceToAscii(bytes: Uint8Array): string {
-  // Decode as latin-1 style to avoid throwing on binary; good enough for PDF keywords.
-  let out = ''
-  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i])
-  return out
-}
-
-async function inflateDeflate(bytes: Uint8Array): Promise<Uint8Array> {
-  if (typeof (globalThis as any).DecompressionStream === 'undefined') {
-    throw new Error('Could not extract readable text from PDF. This PDF uses compression that is not supported in this environment. Please upload a text-based PDF or a TXT file.')
-  }
-
+// Extract text from PDF using unpdf library
+async function extractPDFText(buffer: ArrayBuffer): Promise<string> {
   try {
-    const ds = new DecompressionStream('deflate')
-    const stream = new Blob([bytes]).stream().pipeThrough(ds)
-    const ab = await new Response(stream).arrayBuffer()
-    return new Uint8Array(ab)
-  } catch {
-    throw new Error('Could not extract readable text from PDF. This PDF appears to be compressed in an unsupported way. Please upload a text-based PDF or a TXT file.')
+    const { text } = await extractText(buffer, { mergePages: true })
+    console.log("Extracted PDF text length:", text.length)
+    return text
+  } catch (error) {
+    console.error("PDF extraction error:", error)
+    throw new Error(`Failed to extract PDF text: ${error.message}`)
   }
 }
 
-function extractStringsFromPdfTextObject(block: string): string[] {
-  const results: string[] = []
-  const len = block.length
-  let i = 0
+function buildPrompt(analysisType: "target-role" | "best-fit", targetRole?: string) {
+  if (analysisType === "target-role" && targetRole) {
+    const sanitizedRole = targetRole.slice(0, 100).replace(/[<>]/g, "")
+    return `You are an expert career counselor. Analyze this resume for the role of "${sanitizedRole}".
 
-  while (i < len) {
-    const ch = block[i]
+Be specific, cite actual content from the resume. Reference specific technologies, projects, and achievements.
 
-    if (ch === '(') {
-      let depth = 1
-      let j = i + 1
-      let buf = ''
-      while (j < len && depth > 0) {
-        const c = block[j]
-        if (c === '\\') {
-          const next = block[j + 1] ?? ''
-          if (next === 'n') buf += '\n'
-          else if (next === 'r') buf += '\r'
-          else if (next === 't') buf += ' '
-          else if (next === '(') buf += '('
-          else if (next === ')') buf += ')'
-          else if (next === '\\') buf += '\\'
-          else buf += next
-          j += 2
-          continue
-        }
-        if (c === '(') depth++
-        if (c === ')') depth--
-        if (depth > 0) buf += c
-        j++
-      }
-      const cleaned = buf.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim()
-      if (cleaned) results.push(cleaned)
-      i = j
-      continue
+Return ONLY valid JSON (no markdown, no code blocks):
+{
+  "analysis": "Comprehensive paragraph analyzing match for target role. Be honest about gaps.",
+  "suggestions": [
+    {
+      "role": "${sanitizedRole}",
+      "match": 85,
+      "whyItFits": "Detailed explanation with specific evidence from resume",
+      "skillsToHighlight": ["Skill 1", "Skill 2", "Skill 3"],
+      "skillsToDevelop": ["Gap 1", "Gap 2", "Gap 3"],
+      "description": "Brief summary"
     }
-
-    // Handle hex strings <...> - common for Unicode/Identity-H encoded PDFs
-    if (ch === '<') {
-      const end = block.indexOf('>', i + 1)
-      if (end !== -1) {
-        const hex = block.slice(i + 1, end).replace(/\s+/g, '')
-        if (/^[0-9A-Fa-f]+$/.test(hex) && hex.length >= 2) {
-          // Try UTF-16BE decoding first (common for Identity-H CMap)
-          if (hex.length % 4 === 0) {
-            let decoded = ''
-            let isValidUnicode = true
-            for (let k = 0; k < hex.length; k += 4) {
-              const codePoint = parseInt(hex.slice(k, k + 4), 16)
-              // Valid printable Unicode range
-              if (codePoint >= 0x0020 && codePoint <= 0xFFFF) {
-                decoded += String.fromCharCode(codePoint)
-              } else if (codePoint === 0) {
-                // Skip null chars
-              } else {
-                isValidUnicode = false
-                break
-              }
-            }
-            if (isValidUnicode && decoded.length > 0) {
-              const cleaned = decoded.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim()
-              if (cleaned) results.push(cleaned)
-              i = end + 1
-              continue
-            }
-          }
-          
-          // Fallback to byte-level decoding
-          const bytes = new Uint8Array(Math.floor(hex.length / 2))
-          for (let k = 0; k < bytes.length; k++) {
-            bytes[k] = parseInt(hex.slice(k * 2, k * 2 + 2), 16)
-          }
-          const decoded = new TextDecoder('utf-8', { fatal: false })
-            .decode(bytes)
-            .replace(/[\u0000-\u001f]+/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-          if (decoded) results.push(decoded)
-        }
-        i = end + 1
-        continue
-      }
-    }
-
-    i++
+  ],
+  "overallStrengths": ["Strength 1", "Strength 2", "Strength 3"],
+  "improvementsToConsider": ["Improvement 1", "Improvement 2", "Improvement 3"]
+}`
   }
 
-  return results
+  return `You are an expert career counselor. Analyze this resume and suggest top 3 suitable job roles.
+
+Be SPECIFIC - cite actual technologies, projects, achievements from the resume.
+Be HONEST - mention gaps clearly.
+Provide ACTIONABLE feedback.
+
+Return ONLY valid JSON (no markdown, no code blocks):
+{
+  "analysis": "3-4 sentence analysis. Mention core strengths, experience level, standout qualities.",
+  "suggestions": [
+    {
+      "role": "Best Role Title",
+      "match": 95,
+      "whyItFits": "3-4 sentences citing specific evidence from resume",
+      "skillsToHighlight": ["Skill with context", "Skill 2", "Skill 3"],
+      "skillsToDevelop": ["Gap 1", "Gap 2", "Gap 3"],
+      "description": "One sentence summary"
+    },
+    {
+      "role": "Second Best Role",
+      "match": 87,
+      "whyItFits": "Detailed explanation",
+      "skillsToHighlight": ["skill1", "skill2", "skill3"],
+      "skillsToDevelop": ["gap1", "gap2", "gap3"],
+      "description": "Summary"
+    },
+    {
+      "role": "Third Best Role",
+      "match": 82,
+      "whyItFits": "Detailed explanation",
+      "skillsToHighlight": ["skill1", "skill2", "skill3"],
+      "skillsToDevelop": ["gap1", "gap2", "gap3"],
+      "description": "Summary"
+    }
+  ],
+  "overallStrengths": ["Strength 1", "Strength 2", "Strength 3", "Strength 4"],
+  "improvementsToConsider": ["Improvement 1", "Improvement 2", "Improvement 3"]
+}`
 }
-
-function extractTextFromPdfPayloadString(payload: string): string {
-  const textObjects = payload.match(/BT[\s\S]*?ET/g) || []
-  const pieces: string[] = []
-
-  for (const block of textObjects) {
-    for (const s of extractStringsFromPdfTextObject(block)) {
-      pieces.push(s)
-    }
-  }
-
-  // Fallback: sometimes content isn't wrapped in BT/ET in a way our regex catches.
-  if (pieces.length === 0) {
-    for (const s of extractStringsFromPdfTextObject(payload)) {
-      pieces.push(s)
-    }
-  }
-
-  return pieces.join(' ')
-}
-
-function looksLikeRealResumeText(text: string): boolean {
-  const cleaned = text.replace(/\s+/g, ' ').trim()
-  if (cleaned.length < 50) return false
-
-  // Must contain some normal words.
-  const words = cleaned.match(/[A-Za-z]{3,}/g) || []
-  if (words.length < 20) return false
-
-  // Reject if it still looks like PDF structure noise.
-  const noiseHits = (cleaned.match(/\b(obj|endobj|xref|trailer|startxref|endstream|stream)\b/gi) || []).length
-  if (noiseHits >= 3) return false
-
-  return true
-}
-
-async function extractTextFromPdf(bytes: Uint8Array): Promise<string> {
-  if (!isPdf(bytes)) {
-    throw new Error('Invalid PDF file format')
-  }
-
-  const streamNeedle = new TextEncoder().encode('stream')
-  const endStreamNeedle = new TextEncoder().encode('endstream')
-
-  let cursor = 0
-  const extractedParts: string[] = []
-
-  while (cursor < bytes.length) {
-    const streamIdx = indexOfAscii(bytes, streamNeedle, cursor)
-    if (streamIdx === -1) break
-
-    // Determine the stream payload start after EOL.
-    let payloadStart = streamIdx + streamNeedle.length
-    if (bytes[payloadStart] === 0x0d && bytes[payloadStart + 1] === 0x0a) payloadStart += 2
-    else if (bytes[payloadStart] === 0x0a || bytes[payloadStart] === 0x0d) payloadStart += 1
-
-    const endIdx = indexOfAscii(bytes, endStreamNeedle, payloadStart)
-    if (endIdx === -1) break
-
-    let payloadEnd = endIdx
-    while (payloadEnd > payloadStart && (bytes[payloadEnd - 1] === 0x0a || bytes[payloadEnd - 1] === 0x0d)) {
-      payloadEnd--
-    }
-
-    const dictWindowStart = Math.max(0, streamIdx - 600)
-    const dictWindow = sliceToAscii(bytes.slice(dictWindowStart, streamIdx))
-    const isFlate = /\/FlateDecode\b/.test(dictWindow)
-
-    const payloadBytes = bytes.slice(payloadStart, payloadEnd)
-    const maybeDecompressed = isFlate ? await inflateDeflate(payloadBytes) : payloadBytes
-
-    const payloadStr = new TextDecoder('utf-8', { fatal: false }).decode(maybeDecompressed)
-    const extracted = extractTextFromPdfPayloadString(payloadStr)
-    if (extracted) extractedParts.push(extracted)
-
-    cursor = endIdx + endStreamNeedle.length
-  }
-
-  const combined = extractedParts
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  if (!looksLikeRealResumeText(combined)) {
-    throw new Error('Could not extract readable text from PDF. The PDF may be scanned/image-based or heavily encoded. Please try exporting as a text-based PDF or uploading a TXT file.')
-  }
-
-  console.log('PDF text extracted, length:', combined.length)
-  return combined
-}
-
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
-    // Verify JWT authentication
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      console.error('Missing Authorization header')
-      return new Response(
-        JSON.stringify({ error: 'Authentication required' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      )
-    }
-
-    // Create Supabase client with user's JWT
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader }
-        }
-      }
-    )
-
-    // Verify the user is authenticated
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
-    if (userError || !user) {
-      console.error('Authentication failed:', userError?.message)
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired token' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
-      )
-    }
-
-    console.log('Authenticated user:', user.id)
-
-    const { filePath, analysisType, targetRole }: RequestBody = await req.json()
-
-    // Validate inputs
-    if (!filePath || typeof filePath !== 'string') {
-      return new Response(
-        JSON.stringify({ error: 'Invalid filePath' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    if (!['target-role', 'best-fit'].includes(analysisType)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid analysisType' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    // Verify the file belongs to the authenticated user
-    const pathParts = filePath.split('/')
-    if (pathParts.length < 2 || pathParts[0] !== user.id) {
-      console.error('Unauthorized file access attempt:', { filePath, userId: user.id })
-      return new Response(
-        JSON.stringify({ error: 'Access denied to this file' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
-      )
-    }
-
-    const fileName = pathParts[pathParts.length - 1]
-    console.log('Analyzing resume:', { filePath, fileName, analysisType, targetRole })
-
-    // Download file from storage
-    const { data: fileData, error: downloadError } = await supabaseClient.storage
-      .from('resumes')
-      .download(filePath)
-
-    if (downloadError) {
-      console.error('Download error:', downloadError)
-      return new Response(
-        JSON.stringify({ error: 'Failed to download file. Please ensure the file exists.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    // Extract text from file
-    let resumeText: string
-    try {
-      resumeText = await extractTextFromFile(fileData, fileName)
-    } catch (extractError) {
-      console.error('Text extraction error:', extractError)
-      const errorMessage = extractError instanceof Error ? extractError.message : 'Failed to extract text from file'
-      return new Response(
-        JSON.stringify({ error: errorMessage }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    if (!resumeText || resumeText.trim().length < 50) {
-      console.error('Extracted text too short:', resumeText?.length)
-      return new Response(
-        JSON.stringify({ error: 'Could not extract sufficient text from the resume. Please ensure your file contains readable text.' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
-
-    console.log('Resume text extracted, length:', resumeText.length)
-
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')
-    if (!lovableApiKey) {
-      console.error('LOVABLE_API_KEY not configured')
-      return new Response(
-        JSON.stringify({ error: 'AI service not configured' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      )
-    }
-
-    let prompt = ''
-    if (analysisType === 'target-role') {
-      const sanitizedRole = (targetRole || '').slice(0, 100).replace(/[<>]/g, '')
-      prompt = `Analyze this resume for a ${sanitizedRole} role.
-
-Provide the analysis in plain text only. No markdown, no headings with symbols, no bullet points, no asterisks. Use short paragraphs separated by blank lines.
-
-First give an ATS Score from 0 to 100 as a number. Then discuss the candidate's strengths for this role. Then discuss areas needing improvement. Finally give actionable next steps.
-
-Resume text:
-${resumeText}`
-    } else {
-      prompt = `Analyze this resume and suggest the top 3 most suitable job roles.
-
-Provide the analysis in plain text only. No markdown, no headings with symbols, no bullet points, no asterisks. Use short paragraphs separated by blank lines.
-
-For each role, explain why it fits and what skills to highlight or develop. Then give overall resume strengths and improvements to consider.
-
-Resume text:
-${resumeText}`
-    }
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 405,
       })
+    }
+
+    const { filePath: rawFilePath, analysisType, targetRole } = await req.json()
+
+    if (!rawFilePath || !analysisType) {
+      return new Response(JSON.stringify({ error: "Missing filePath or analysisType" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      })
+    }
+
+    // Sanitize filePath to prevent path traversal
+    const filePath = rawFilePath.replace(/\.\./g, '').replace(/^\/+/, '')
+
+    const openrouterApiKey = Deno.env.get("OPENROUTER_API_KEY")
+    if (!openrouterApiKey) {
+      return new Response(JSON.stringify({ error: "Missing OPENROUTER_API_KEY" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      })
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    if (!supabaseUrl || !serviceKey) {
+      return new Response(JSON.stringify({ error: "Missing Supabase environment variables" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500,
+      })
+    }
+
+    const fileName = filePath.split("/").pop() || "resume"
+    
+    if (!isSupportedFile(fileName)) {
+      return new Response(JSON.stringify({ error: "Unsupported file type. Please upload PDF or TXT." }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      })
+    }
+    
+    const objectUrl = `${supabaseUrl}/storage/v1/object/resumes/${filePath}`
+    const storageResponse = await fetch(objectUrl, {
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
     })
 
-    const aiResponse = await response.json()
-    console.log('AI response received')
+    if (!storageResponse.ok) {
+      const errorText = await storageResponse.text()
+      return new Response(
+        JSON.stringify({ error: "Failed to download resume file", details: errorText }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+      )
+    }
+
+    const fileData = await storageResponse.arrayBuffer()
+    const prompt = buildPrompt(analysisType, targetRole)
     
-    if (!response.ok) {
-      console.error('AI error:', aiResponse)
-      return new Response(
-        JSON.stringify({ error: 'AI service error' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      )
+    let resumeText: string
+    
+    if (isTextFile(fileName)) {
+      resumeText = normalizeText(new TextDecoder().decode(fileData))
+    } else if (isPDFFile(fileName)) {
+      const rawText = await extractPDFText(fileData)
+      resumeText = normalizeText(rawText)
+    } else {
+      return new Response(JSON.stringify({ error: "Unsupported file format" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      })
     }
 
-    if (!aiResponse.choices?.[0]?.message?.content) {
-      console.error('Invalid AI response structure:', aiResponse)
-      return new Response(
-        JSON.stringify({ error: 'Invalid AI response' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      )
+    if (!resumeText || resumeText.length < 50) {
+      return new Response(JSON.stringify({ 
+        error: "Could not extract sufficient text from PDF. Please try uploading a text-based PDF or .txt file.",
+        extractedLength: resumeText?.length || 0
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      })
     }
 
-    const analysis = aiResponse.choices[0].message.content
+    // Model fallback chain - will try in order if rate limited
+    const MODEL_FALLBACK_CHAIN = [
+      "anthropic/claude-3-haiku", // Best quality but paid (cheap)
+      "nvidia/nemotron-3-nano-30b-a3b:free",
+      "liquid/lfm-2.5-1.2b-instruct:free",
+      "arcee-ai/trinity-large-preview:free",
+      "upstage/solar-pro-3:free",
+    ]
 
-    // Extract ATS score if it's a target-role analysis
-    let atsScore = null
-    if (analysisType === 'target-role') {
-      const scoreMatch = analysis.match(/ATS Score.*?(\d+)/i) || analysis.match(/(\d+)\s*(?:\/\s*100|out of 100)?/i)
-      if (scoreMatch) {
-        atsScore = parseInt(scoreMatch[1])
+    // Optional backup API key for failover
+    const backupApiKey = Deno.env.get("OPENROUTER_API_KEY_BACKUP")
+    
+    // Helper: Exponential backoff delay
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+    
+    let response: Response | null = null
+    let lastError = ""
+    let successfulModel = ""
+    const failedModels: string[] = []
+    const REQUEST_TIMEOUT = 30000 // 30 seconds per model
+    
+    // Try each model in the fallback list with production-grade error handling
+    for (let i = 0; i < MODEL_FALLBACK_CHAIN.length; i++) {
+      const model = MODEL_FALLBACK_CHAIN[i]
+      const apiKey = (i === MODEL_FALLBACK_CHAIN.length - 1 && backupApiKey) ? backupApiKey : openrouterApiKey
+      
+      console.log(`[Attempt ${i + 1}/${MODEL_FALLBACK_CHAIN.length}] Trying model: ${model}`)
+      
+      // Exponential backoff: wait before retry (except first attempt)
+      if (i > 0) {
+        const delayMs = Math.min(1000 * Math.pow(2, i - 1), 8000) // Cap at 8s
+        console.log(`Waiting ${delayMs}ms before retry...`)
+        await sleep(delayMs)
+      }
+      
+      try {
+        // Create AbortController for timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+        
+        const fetchPromise = fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://aspiro-career.app",
+            "X-Title": "ASPIRO Career Assistant"
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: "system",
+                content: "You are an expert career counselor. Always respond with valid JSON only."
+              },
+              {
+                role: "user",
+                content: `${prompt}\n\n--- RESUME ---\n${resumeText}\n--- END ---`
+              }
+            ],
+            temperature: 0.3,
+            max_tokens: 3000,
+            stream: true
+          }),
+          signal: controller.signal
+        })
+
+        response = await fetchPromise
+        clearTimeout(timeoutId)
+
+        if (response.ok) {
+          console.log(`✅ Success with model: ${model}`)
+          successfulModel = model
+          break // Success! Exit the loop
+        }
+
+        // Check if it's a rate limit error
+        const errorText = await response.text()
+        lastError = errorText
+        
+        const isRateLimit = response.status === 429 || 
+                           errorText.includes("rate-limit") || 
+                           errorText.includes("rate limit") ||
+                           errorText.includes("quota")
+        
+        if (isRateLimit) {
+          console.log(`🔄 Model ${model} is rate-limited (${response.status}), trying next...`)
+          failedModels.push(`${model}:rate_limited`)
+          response = null
+          continue
+        } else {
+          // Other error, might work with different model
+          const statusCode = response.status
+          console.log(`❌ Model ${model} failed with ${statusCode}: ${errorText.slice(0, 200)}`)
+          failedModels.push(`${model}:${statusCode}`)
+          response = null
+          continue
+        }
+      } catch (error) {
+        const isTimeout = error.name === "AbortError"
+        const errorType = isTimeout ? "timeout" : "network_error"
+        console.error(`❌ Request ${errorType} for ${model}:`, error.message)
+        lastError = `${errorType}: ${error.message}`
+        failedModels.push(`${model}:${errorType}`)
+        response = null
+        continue
       }
     }
 
-    return new Response(
-      JSON.stringify({ 
-        analysis,
-        atsScore 
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
+    if (!response || !response.ok) {
+      console.error("❌ All models exhausted. Failed models:", failedModels.join(", "))
+      console.error("Last error:", lastError)
+      
+      // Provide detailed error message to user
+      const hasRateLimits = failedModels.some(m => m.includes("rate_limited"))
+      const hasTimeouts = failedModels.some(m => m.includes("timeout"))
+      
+      let userMessage = "AI service temporarily unavailable. "
+      if (hasRateLimits) {
+        userMessage += "All models are currently rate-limited. Please try again in a few minutes."
+      } else if (hasTimeouts) {
+        userMessage += "Request timeout. Please check your connection and try again."
+      } else {
+        userMessage += "All AI models failed to respond. Please try again later."
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: userMessage,
+          technical_details: failedModels.join(", "),
+          timestamp: new Date().toISOString()
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 502 }
+      )
+    }
+    
+    console.log(`✅ Streaming response from: ${successfulModel}`)
+
+    // Return streaming response (Server-Sent Events)
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        
+        if (!reader) {
+          controller.close()
+          return
+        }
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n').filter(line => line.trim() !== '')
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') continue
+
+                try {
+                  const parsed = JSON.parse(data)
+                  const content = parsed.choices?.[0]?.delta?.content
+                  
+                  if (content) {
+                    // Send each chunk as SSE
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                  }
+                } catch (e) {
+                  // Skip invalid JSON chunks
+                  continue
+                }
+              }
+            }
+          }
+          
+          // Send final [DONE] marker
+          controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+          controller.close()
+        } catch (error) {
+          console.error('Stream error:', error)
+          controller.error(error)
+        }
+      }
+    })
+
+    return new Response(stream, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
       },
-    )
+      status: 200
+    })
   } catch (error) {
-    console.error('Resume analysis error:', error)
-    return new Response(
-      JSON.stringify({ error: 'An error occurred processing your request' }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      },
-    )
+    console.error("Function error:", error)
+    return new Response(JSON.stringify({ error: "Internal server error", details: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    })
   }
 })
