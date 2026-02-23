@@ -9,12 +9,19 @@
 </p>
 
 <p align="center">
+  <a href="https://aspire-ai.tech" target="_blank">
+    <img src="https://img.shields.io/badge/🌐_Live_Demo-aspire--ai.tech-brightgreen?style=for-the-badge" alt="Live Demo" />
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=white" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vite-5.4-646CFF?logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/Supabase-BaaS-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind" />
   <img src="https://img.shields.io/badge/Zustand-5.0-orange" alt="Zustand" />
+  <img src="https://img.shields.io/badge/Deployed-Vercel-black?logo=vercel&logoColor=white" alt="Vercel" />
 </p>
 
 ---
@@ -265,5 +272,5 @@ This project is for educational and portfolio purposes.
 ---
 
 <p align="center">
-  Built by <a href="https://github.com/TechTyphoon">Mahendra Reddy</a>
+  Live at <a href="https://aspire-ai.tech">aspire-ai.tech</a> · Built by <a href="https://github.com/TechTyphoon">Mahendra Reddy</a>
 </p>
