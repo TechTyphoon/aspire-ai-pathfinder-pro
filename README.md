@@ -68,30 +68,30 @@ Users upload their resume (PDF/TXT), receive AI-powered analysis against target 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────┐
 │                    Frontend (Vite + React)            │
-│  ┌──────────┐  ┌───────────┐  ┌───────────────────┐ │
-│  │ Zustand   │  │ useStream │  │ React Components  │ │
-│  │ Store     │◄─┤ ingAI     │◄─┤ (Dashboard, Chat) │ │
-│  │ (persist) │  │ (SSE)     │  │                   │ │
-│  └─────┬─────┘  └─────┬─────┘  └───────────────────┘ │
+│  ┌───────────┐  ┌───────────┐  ┌───────────────────┐  │
+│  │ Zustand   │  │ useStream │  │ React Components  │  │
+│  │ Store     │◄─┤ ingAI     │◄─┤ (Dashboard, Chat) │  │
+│  │ (persist) │  │ (SSE)     │  │                   │  │
+│  └─────┬─────┘  └─────┬─────┘  └───────────────────┘  │
 │        │              │                               │
 └────────┼──────────────┼───────────────────────────────┘
          │              │  HTTPS + Bearer JWT
          ▼              ▼
 ┌──────────────────────────────────────────────────────┐
-│              Supabase (Backend-as-a-Service)          │
-│  ┌──────────┐  ┌───────────────┐  ┌──────────────┐  │
-│  │ Auth      │  │ Edge Functions │  │ Storage      │  │
-│  │ (JWT)     │  │ (Deno)        │  │ (Resumes)    │  │
-│  └──────────┘  │ • analyze-    │  └──────────────┘  │
-│                │   resume       │                     │
-│  ┌──────────┐  │ • career-     │  ┌──────────────┐  │
-│  │ Postgres  │  │   mentor      │  │ Row Level    │  │
-│  │ (profiles,│  └───────┬───────┘  │ Security     │  │
-│  │  paths)   │          │          └──────────────┘  │
+│              Supabase (Backend-as-a-Service)         │
+│  ┌──────────┐  ┌───────────────┐  ┌──────────────┐   │
+│  │ Auth     │  │ Edge Functions│  │ Storage      │   │
+│  │ (JWT)    │  │ (Deno)        │  │ (Resumes)    │   │
+│  └──────────┘  │ • analyze-    │  └──────────────┘   │
+│                │   resume      │                     │
+│  ┌──────────┐  │ • career-     │  ┌──────────────┐   │
+│  │ Postgres │  │   mentor      │  │ Row Level    │   │
+│  │ (profiles│  └───────┬───────┘  │ Security     │   │
+│  │  paths)  │          │          └──────────────┘   │
 │  └──────────┘          │                             │
-└─────────────────────────┼─────────────────────────────┘
+└─────────────────────────┼────────────────────────────┘
                           │  SSE Streaming
                           ▼
               ┌───────────────────────┐
